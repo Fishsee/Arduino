@@ -14,6 +14,6 @@
 
 ###
 
-<p align="left">Hier komt de code conventie...</p>
+For code convention references, consult the [Makerguide C++ Style Guide for Arduino projects.](https://www.makerguides.com/c-style-guide-for-arduino-projects)
 
 ###
