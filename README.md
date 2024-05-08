@@ -1,4 +1,4 @@
-<h1 align="center">Project ....</h1>
+<h1 align="center">Project Fishsee <small>Arduino</small></h1>
 
 ###
 
