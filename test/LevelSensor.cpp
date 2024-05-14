@@ -16,8 +16,20 @@ unsigned char high_data[12] = {0};
 #define ATTINY1_HIGH_ADDR   0x78
 #define ATTINY2_LOW_ADDR   0x77
 
-void getHigh12SectionValue(void)
-{
+void getHigh12SectionValue(void);
+void getLow8SectionValue(void);
+void check();
+
+void setup() {
+  SERIAL.begin(115200);
+  Wire.begin();
+}
+
+void loop() {
+  check();
+}
+
+void getHigh12SectionValue(void) {
   memset(high_data, 0, sizeof(high_data));
   Wire.requestFrom(ATTINY1_HIGH_ADDR, 12);
   while (12 != Wire.available());
@@ -28,8 +40,7 @@ void getHigh12SectionValue(void)
   delay(10);
 }
 
-void getLow8SectionValue(void)
-{
+void getLow8SectionValue(void) {
   memset(low_data, 0, sizeof(low_data));
   Wire.requestFrom(ATTINY2_LOW_ADDR, 8);
   while (8 != Wire.available());
@@ -40,8 +51,7 @@ void getLow8SectionValue(void)
   delay(10);
 }
 
-void check()
-{
+void check() {
   int sensorvalue_min = 250;
   int sensorvalue_max = 255;
   int low_count = 0;
@@ -116,14 +126,4 @@ void check()
     SERIAL.println("*********************************************************");
     delay(1000);
   }
-}
-
-void setup() {
-  SERIAL.begin(115200);
-  Wire.begin();
-}
-
-void loop()
-{
-  check();
 }

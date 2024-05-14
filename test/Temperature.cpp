@@ -6,6 +6,8 @@ int DS18S20_Pin = 2; //DS18S20 Signal pin on digital 2
 //Temperature chip i/o
 OneWire ds(DS18S20_Pin);  // on digital pin 2
 
+float getTemp();
+
 void setup(void) {
   Serial.begin(9600);
 }

@@ -8,8 +8,7 @@ const int colorR = 255;
 const int colorG = 0;
 const int colorB = 0;
 
-void setup() 
-{
+void setup() {
     // set up the LCD's number of columns and rows:
     lcd.begin(16, 2);
     
@@ -21,8 +20,7 @@ void setup()
     delay(1000);
 }
 
-void loop() 
-{
+void loop() {
     // set the cursor to column 0, line 1
     // (note: line 1 is the second row, since counting begins with 0):
     lcd.setCursor(0, 1);

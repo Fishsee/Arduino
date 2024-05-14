@@ -1,5 +1,6 @@
 #include <SPI.h>
 #include <WiFiNINA.h>
+#include <Arduino.h>
 
 char ssid[] = "WIFISSID";     // SSID van je WiFi-netwerk
 char pass[] = "WIFIWW"; // Wachtwoord van je WiFi-netwerk

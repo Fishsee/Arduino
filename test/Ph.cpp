@@ -7,14 +7,16 @@
 #define ArrayLenth  40    //times of collection
 int pHArray[ArrayLenth];   //Store the average value of the sensor feedback
 int pHArrayIndex=0;
-void setup(void)
-{
+
+double avergearray(int* arr, int number);
+
+void setup(void) {
   pinMode(LED,OUTPUT);
   Serial.begin(9600);
   Serial.println("pH meter experiment!");    //Test the serial monitor
 }
-void loop(void)
-{
+
+void loop(void) {
   static unsigned long samplingTime = millis();
   static unsigned long printTime = millis();
   static float pHValue,voltage;
@@ -37,6 +39,7 @@ void loop(void)
         printTime=millis();
   }
 }
+
 double avergearray(int* arr, int number){
   int i;
   int max,min;
