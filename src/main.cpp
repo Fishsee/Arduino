@@ -14,7 +14,7 @@
 #define ULTRASONIC_PIN  3 // Verbind deze met de enkele pin van de Grove Ultrasonic-sensor
 
 // Pin voor de Grove Turbidity Sensor Meter
-#define TURBIDITY_PIN 7 // Verbind deze met de pin van de Grove Turbidity Sensor Meter
+#define TURBIDITY_PIN A1 // Verbind deze met de pin van de Grove Turbidity Sensor Meter
 
 // Pin voor de Grove Light Sensor v1.2
 #define LIGHT_SENSOR_PIN A0 // Verbind deze met de analoge pin van de Grove Light Sensor
