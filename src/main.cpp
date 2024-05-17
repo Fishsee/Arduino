@@ -22,6 +22,8 @@ int status = WL_IDLE_STATUS;
 
 #define WATER_LEVEL_PIN A3
 
+#define TEMPERATURE_PIN A5
+
 rgb_lcd lcd;
 Adafruit_NeoPixel strip(NUM_LEDS, LED_PIN, NEO_GRB + NEO_KHZ800);
 Ultrasonic ultrasonic(ULTRASONIC_PIN);
@@ -80,12 +82,18 @@ void loop() {
 
   // Measure turbidity
   int turbidity_value = analogRead(TURBIDITY_PIN);
+  float Vclear = 2.85; //voltage om percentage mee te calibreren
+  float voltage = turbidity_value * (5.000 / 1023.000); //troebeleid naar een voltage
+  float turbidity = 100.00 - (voltage / Vclear) * 100.00; // percentage van de troebelheid, 0% is schoon water
 
   // Measure light level
   int light_level = analogRead(LIGHT_SENSOR_PIN);
 
   // Measure water level
   int water_level = analogRead(WATER_LEVEL_PIN);
+
+  // Measure temperature
+  int temperature = analogRead(TEMPERATURE_PIN);
 
   // Calculate water level percentage
   float percentage_water = (float)(1023 - water_level) / 1023 * 100;
@@ -100,9 +108,12 @@ void loop() {
   lcd.print("cm");
   lcd.setCursor(0, 1);
   lcd.print("T:");
-  lcd.print(turbidity_value);
+  lcd.print(turbidity);
+  lcd.print("% ");
   lcd.print(" L:");
   lcd.print(light_level);
+  lcd.print(" T:");
+  lcd.print(temperature);
 
   // Control the LED strip based on light level
   if (light_level < 400) {
