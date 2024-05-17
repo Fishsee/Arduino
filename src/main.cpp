@@ -1,6 +1,8 @@
 #include <Arduino.h>
 #include <Adafruit_NeoPixel.h>
 #include <Wire.h>
+#include <OneWire.h>
+#include <DallasTemperature.h>
 #include "rgb_lcd.h"
 #include "Ultrasonic.h"
 #include <WiFi.h> // Changed from WiFiNINA to WiFi
@@ -16,13 +18,18 @@ int status = WL_IDLE_STATUS;
 
 #define ULTRASONIC_PIN  3
 
-#define TURBIDITY_PIN A1
+#define TURBIDITY_PIN 8
 
 #define LIGHT_SENSOR_PIN A0
 
 #define WATER_LEVEL_PIN A3
 
-#define TEMPERATURE_PIN A5
+#define TEMPERATURE_PIN 2
+
+OneWire oneWire(TEMPERATURE_PIN);
+
+// Pass our oneWire reference to Dallas Temperature sensor 
+DallasTemperature sensors(&oneWire);
 
 rgb_lcd lcd;
 Adafruit_NeoPixel strip(NUM_LEDS, LED_PIN, NEO_GRB + NEO_KHZ800);
@@ -30,12 +37,14 @@ Ultrasonic ultrasonic(ULTRASONIC_PIN);
 
 void colorWipe(uint32_t color);
 void printWiFiStatus();
+float getTemp();
 
 void setup() {
   strip.begin();
   colorWipe(strip.Color(0, 0, 0));
   Serial.begin(9600);
   Wire.begin();
+  pinMode(TURBIDITY_PIN, INPUT);
 
   // Initialiseer de Grove RGB LCD
   lcd.begin(16, 2);
@@ -44,47 +53,43 @@ void setup() {
   delay(500);
   lcd.clear();
 
-  // Check for the WiFi module
-  if (WiFi.status() == WL_NO_SHIELD) {
-    lcd.print("WiFi module fail");
-    while (true);
-  }
+  // // Check for the WiFi module
+  // if (WiFi.status() == WL_NO_SHIELD) {
+  //   lcd.print("WiFi module fail");
+  //   while (true);
+  // }
 
-  // Attempt to connect to WiFi network
-  lcd.print("Attempting to connect");
-  lcd.setCursor(0, 1);
-  lcd.print(ssid);
-  lcd.setCursor(0, 0);
-  delay(500);
+  // // Attempt to connect to WiFi network
+  // lcd.print("Attempting to connect");
+  // lcd.setCursor(0, 1);
+  // lcd.print(ssid);
+  // lcd.setCursor(0, 0);
+  // delay(500);
 
-  while (status != WL_CONNECTED) {
-    lcd.print("Connecting...");
-    status = WiFi.begin(ssid, password);
+  // while (status != WL_CONNECTED) {
+  //   lcd.print("Connecting...");
+  //   status = WiFi.begin(ssid, password);
 
-    // Wait 10 seconds for connection
-    delay(5000);
+  //   // Wait 10 seconds for connection
+  //   delay(5000);
 
-    if (status == WL_CONNECTED) {
-      lcd.clear();
-      lcd.print("Connected to WiFi");
-      delay(500);
-      printWiFiStatus();
-    } else {
-      lcd.clear();
-      lcd.print("Failed to connect");
-    }
-  }
+  //   if (status == WL_CONNECTED) {
+  //     lcd.clear();
+  //     lcd.print("Connected to WiFi");
+  //     delay(500);
+  //     printWiFiStatus();
+  //   } else {
+  //     lcd.clear();
+  //     lcd.print("Failed to connect");
+  //   }
+  // }
 }
 
 void loop() {
   // Measure distance with the ultrasonic sensor
   int distance_cm = (int)ultrasonic.distanceRead(CM);
 
-  // Measure turbidity
-  int turbidity_value = analogRead(TURBIDITY_PIN);
-  float Vclear = 2.85; //voltage om percentage mee te calibreren
-  float voltage = turbidity_value * (5.000 / 1023.000); //troebeleid naar een voltage
-  float turbidity = 100.00 - (voltage / Vclear) * 100.00; // percentage van de troebelheid, 0% is schoon water
+  int turbidity = digitalRead(TURBIDITY_PIN);
 
   // Measure light level
   int light_level = analogRead(LIGHT_SENSOR_PIN);
@@ -92,14 +97,15 @@ void loop() {
   // Measure water level
   int water_level = analogRead(WATER_LEVEL_PIN);
 
-  // Measure temperature
-  int temperature = analogRead(TEMPERATURE_PIN);
-
   // Calculate water level percentage
   float percentage_water = (float)(1023 - water_level) / 1023 * 100;
 
+  // Measure temperature
+  sensors.requestTemperatures(); 
+
   // Display measurements on the LCD
   lcd.clear();
+  lcd.setRGB(255, 255, 255);
   lcd.setCursor(0, 0);
   lcd.print("W:");
   lcd.print(water_level, 1);
@@ -108,12 +114,13 @@ void loop() {
   lcd.print("cm");
   lcd.setCursor(0, 1);
   lcd.print("T:");
-  lcd.print(turbidity);
-  lcd.print("% ");
-  lcd.print(" L:");
-  lcd.print(light_level);
-  lcd.print(" T:");
-  lcd.print(temperature);
+   if(turbidity==HIGH){       //Read sensor signal 
+        lcd.print("Troebel");
+     }else{
+        lcd.print("Clear");
+     }
+  lcd.print(" C:");
+  lcd.print(sensors.getTempCByIndex(0));
 
   // Control the LED strip based on light level
   if (light_level < 400) {
