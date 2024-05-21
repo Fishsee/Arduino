@@ -26,6 +26,8 @@ int status = WL_IDLE_STATUS;
 
 #define TEMPERATURE_PIN 2
 
+#define PH_SENSOR_PIN A1          
+
 char turbidity_status[10] = "Null";
 
 OneWire oneWire(TEMPERATURE_PIN);
@@ -41,6 +43,9 @@ void colorWipe(uint32_t color);
 void printWiFiStatus();
 float getTemp();
 void checkTurbidity();
+unsigned long int avgValue;  //Store the average value of the sensor feedback
+float b;
+int buf[10],temp;
 
 unsigned long previousMillis = 0;
 const long interval = 1000;
@@ -172,4 +177,29 @@ void printWiFiStatus() {
   Serial.print("Signal strength (RSSI):");
   Serial.print(rssi);
   Serial.println(" dBm");
+}
+
+void readPH(){
+  for(int i=0;i<10;i++)       //Get 10 sample value from the sensor for smooth the value
+  { 
+    buf[i]=analogRead(PH_SENSOR_PIN);
+    delay(10);
+  }
+  for(int i=0;i<9;i++)        //sort the analog from small to large
+  {
+    for(int j=i+1;j<10;j++)
+    {
+      if(buf[i]>buf[j])
+      {
+        temp=buf[i];
+        buf[i]=buf[j];
+        buf[j]=temp;
+      }
+    }
+  }
+  avgValue=0;
+  for(int i=2;i<8;i++)                      //take the average value of 6 center sample
+    avgValue+=buf[i];
+  float phValue=(float)avgValue*5.0/1024/6; //convert the analog into millivolt
+  phValue=3.5*phValue;                      //convert the millivolt into pH value
 }
