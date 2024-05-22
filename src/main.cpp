@@ -43,9 +43,16 @@ void colorWipe(uint32_t color);
 void printWiFiStatus();
 float getTemp();
 void checkTurbidity();
+void flow();
+void readPH();
 unsigned long int avgValue;  //Store the average value of the sensor feedback
 float b;
 int buf[10],temp;
+volatile int flow_frequency; // Measures flow sensor pulses
+unsigned int l_hour; // Calculated litres/hour
+const byte flowsensor = 0; // Sensor Input
+unsigned long currentTime;
+unsigned long cloopTime;
 
 unsigned long previousMillis = 0;
 const long interval = 1000;
@@ -56,6 +63,11 @@ void setup() {
   Serial.begin(9600);
   Wire.begin();
   pinMode(TURBIDITY_PIN, INPUT);
+  pinMode(flowsensor, INPUT);
+  digitalWrite(flowsensor, HIGH); // Optional Internal Pull-Up
+  attachInterrupt(digitalPinToInterrupt(flowsensor), flow, RISING); // Setup Interrupt
+  currentTime = millis();
+  cloopTime = currentTime;
 
   // Initialiseer de Grove RGB LCD
   lcd.begin(16, 2);
@@ -96,8 +108,30 @@ void setup() {
   // }
 }
 
+void flow() // Interrupt function
+{
+   flow_frequency++;
+}
+
 void loop() {
   unsigned long currentMillis = millis();
+
+  currentTime = millis();
+   // Every second, calculate and print litres/hour
+   if(currentTime >= (cloopTime + 1000))
+   {
+      cloopTime = currentTime; // Updates cloopTime
+
+      // Disable interrupts while calculating
+      noInterrupts();
+      // Pulse frequency (Hz) = 7.5Q, Q is flow rate in L/min.
+      l_hour = (flow_frequency * 60 / 7.5); // (Pulse frequency x 60 min) / 7.5Q = flowrate in L/hour
+      flow_frequency = 0; // Reset Counter
+      interrupts(); // Enable interrupts
+
+      Serial.print(l_hour, DEC); // Print litres/hour
+      Serial.println(" L/hour");
+   }
 
   // Non-blocking delay
   if (currentMillis - previousMillis >= interval) {
@@ -117,6 +151,7 @@ void loop() {
 
     // Measure temperature
     sensors.requestTemperatures();
+    readPH();
 
     // Display measurements on the LCD
     lcd.clear();
@@ -147,7 +182,6 @@ void checkTurbidity() {
   int sensorValue = analogRead(TURBIDITY_PIN);  // Read the analog sensor value
   int turbidity = map(sensorValue, 0, 640, 100, 0);  // Map the sensor value to a turbidity percentage
 
-  Serial.print(sensorValue);
   // Determine and display the water quality 0 is clear 1 is cloudy 2 is dirty
   if (turbidity < 20) {
     strcpy(turbidity_status, "Clear");
@@ -201,5 +235,8 @@ void readPH(){
   for(int i=2;i<8;i++)                      //take the average value of 6 center sample
     avgValue+=buf[i];
   float phValue=(float)avgValue*5.0/1024/6; //convert the analog into millivolt
-  phValue=3.5*phValue;                      //convert the millivolt into pH value
+  phValue=3.5*phValue+1;                      //convert the millivolt into pH value
+  Serial.println(phValue);
 }
+
+
