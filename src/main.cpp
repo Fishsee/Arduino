@@ -129,8 +129,8 @@ void loop() {
       flow_frequency = 0; // Reset Counter
       interrupts(); // Enable interrupts
 
-      Serial.print(l_hour, DEC); // Print litres/hour
-      Serial.println(" L/hour");
+      // Serial.print(l_hour, DEC); // Print litres/hour
+      // Serial.println(" L/hour");
    }
 
   // Non-blocking delay
@@ -234,8 +234,9 @@ void readPH(){
   avgValue=0;
   for(int i=2;i<8;i++)                      //take the average value of 6 center sample
     avgValue+=buf[i];
+  Serial.println(avgValue);
   float phValue=(float)avgValue*5.0/1024/6; //convert the analog into millivolt
-  phValue=3.5*phValue+1;                      //convert the millivolt into pH value
+  phValue=3.5*phValue+0.54;                      //convert the millivolt into pH value
   Serial.println(phValue);
 }
 
