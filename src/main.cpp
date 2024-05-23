@@ -5,7 +5,7 @@
 #include <DallasTemperature.h>
 #include "rgb_lcd.h"
 #include "Ultrasonic.h"
-#include <WiFi.h> // Changed from WiFiNINA to WiFi
+#include <WiFi.h>
 
 const char* ssid = "Broodjegehaktbal";
 const char* password = "12345678";
@@ -22,8 +22,6 @@ int status = WL_IDLE_STATUS;
 
 #define LIGHT_SENSOR_PIN A0
 
-#define WATER_LEVEL_PIN A3
-
 #define TEMPERATURE_PIN 2
 
 #define PH_SENSOR_PIN A1          
@@ -39,15 +37,27 @@ rgb_lcd lcd;
 Adafruit_NeoPixel strip(NUM_LEDS, LED_PIN, NEO_GRB + NEO_KHZ800);
 Ultrasonic ultrasonic(ULTRASONIC_PIN);
 
+unsigned char low_data[8] = {0};
+unsigned char high_data[12] = {0};
+
+#define NO_TOUCH       0xFE
+#define THRESHOLD      100
+#define ATTINY1_HIGH_ADDR   0x78
+#define ATTINY2_LOW_ADDR   0x77
+
 void colorWipe(uint32_t color);
 void printWiFiStatus();
 float getTemp();
 void checkTurbidity();
 void flow();
 void readPH();
-unsigned long int avgValue;  //Store the average value of the sensor feedback
+void getHigh12SectionValue(void);
+void getLow8SectionValue(void);
+int getWaterLevel(void);
+
+unsigned long int avgValue;  // Store the average value of the sensor feedback
 float b;
-int buf[10],temp;
+int buf[10], temp;
 volatile int flow_frequency; // Measures flow sensor pulses
 unsigned int l_hour; // Calculated litres/hour
 const byte flowsensor = 0; // Sensor Input
@@ -75,6 +85,9 @@ void setup() {
   lcd.print("Hello, world!");
   delay(500);
   lcd.clear();
+
+  // Initialiseer de waterniveausensor
+  // Geen speciale initialisatie nodig voor I2C
 
   // // Check for the WiFi module
   // if (WiFi.status() == WL_NO_SHIELD) {
@@ -144,10 +157,10 @@ void loop() {
     int light_level = analogRead(LIGHT_SENSOR_PIN);
 
     // Measure water level
-    int water_level = analogRead(WATER_LEVEL_PIN);
+    int water_level = getWaterLevel();
 
     // Calculate water level percentage
-    float percentage_water = (float)(1023 - water_level) / 1023 * 100;
+    float percentage_water = (float)(water_level) * 5;  // Each step is approximately 5%
 
     // Measure temperature
     sensors.requestTemperatures();
@@ -158,7 +171,7 @@ void loop() {
     lcd.setRGB(255, 255, 255);
     lcd.setCursor(0, 0);
     lcd.print("W:");
-    lcd.print(percentage_water, 1);
+    lcd.print(water_level);
     lcd.print("% A:");
     lcd.print(distance_cm);
     lcd.print("cm");
@@ -240,4 +253,50 @@ void readPH(){
   Serial.println(phValue);
 }
 
+int getWaterLevel() {
+  getLow8SectionValue();
+  getHigh12SectionValue();
 
+  uint32_t touch_val = 0;
+  uint8_t trig_section = 0;
+
+  for (int i = 0; i < 8; i++) {
+    if (low_data[i] > THRESHOLD) {
+      touch_val |= 1 << i;
+    }
+  }
+  for (int i = 0; i < 12; i++) {
+    if (high_data[i] > THRESHOLD) {
+      touch_val |= (uint32_t)1 << (8 + i);
+    }
+  }
+
+  while (touch_val & 0x01) {
+    trig_section++;
+    touch_val >>= 1;
+  }
+
+  return trig_section * 5;  // Each section represents approximately 5% of the water level
+}
+
+void getHigh12SectionValue() {
+  memset(high_data, 0, sizeof(high_data));
+  Wire.requestFrom(ATTINY1_HIGH_ADDR, 12);
+  while (12 != Wire.available());
+
+  for (int i = 0; i < 12; i++) {
+    high_data[i] = Wire.read();
+  }
+  delay(10);
+}
+
+void getLow8SectionValue() {
+  memset(low_data, 0, sizeof(low_data));
+  Wire.requestFrom(ATTINY2_LOW_ADDR, 8);
+  while (8 != Wire.available());
+
+  for (int i = 0; i < 8; i++) {
+    low_data[i] = Wire.read();
+  }
+  delay(10);
+}
