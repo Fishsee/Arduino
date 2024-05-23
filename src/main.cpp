@@ -1,16 +1,18 @@
 #include <Arduino.h>
+#include <SPI.h>
+#include <WiFi.h>
 #include <Adafruit_NeoPixel.h>
 #include <Wire.h>
 #include <OneWire.h>
 #include <DallasTemperature.h>
 #include "rgb_lcd.h"
 #include "Ultrasonic.h"
-#include <WiFi.h>
 
-const char* ssid = "Broodjegehaktbal";
-const char* password = "12345678";
-int status = WL_IDLE_STATUS;
+// Network credentials
+char ssid[32];
+char pass[64];
 
+// Constants and definitions
 #define LED_PIN     4
 #define NUM_LEDS    60
 
@@ -34,7 +36,7 @@ OneWire oneWire(TEMPERATURE_PIN);
 DallasTemperature sensors(&oneWire);
 
 rgb_lcd lcd;
-Adafruit_NeoPixel strip(NUM_LEDS, LED_PIN, NEO_GRB + NEO_KHZ800);
+Adafruit_NeoPixel strip(NUM_LEDS, LED_PIN, NEO_RGB + NEO_KHZ800);
 Ultrasonic ultrasonic(ULTRASONIC_PIN);
 
 unsigned char low_data[8] = {0};
@@ -70,7 +72,7 @@ const long interval = 1000;
 void setup() {
   strip.begin();
   colorWipe(strip.Color(0, 0, 0));
-  Serial.begin(9600);
+  Serial.begin(115200);
   Wire.begin();
   pinMode(TURBIDITY_PIN, INPUT);
   pinMode(flowsensor, INPUT);
@@ -79,46 +81,70 @@ void setup() {
   currentTime = millis();
   cloopTime = currentTime;
 
-  // Initialiseer de Grove RGB LCD
+  // Initialize the Grove RGB LCD
   lcd.begin(16, 2);
   lcd.setRGB(0, 255, 0);
   lcd.print("Hello, world!");
   delay(500);
   lcd.clear();
 
-  // Initialiseer de waterniveausensor
-  // Geen speciale initialisatie nodig voor I2C
+  // Initialize the water level sensor
+  // No special initialization needed for I2C
 
-  // // Check for the WiFi module
-  // if (WiFi.status() == WL_NO_SHIELD) {
-  //   lcd.print("WiFi module fail");
-  //   while (true);
-  // }
+  // WiFi connection setup
+  Serial.println("Starting WiFi scan...");
+  if (WiFi.status() == WL_NO_SHIELD) {
+    Serial.println("WiFi shield not present");
+    while (true);
+  }
 
-  // // Attempt to connect to WiFi network
-  // lcd.print("Attempting to connect");
-  // lcd.setCursor(0, 1);
-  // lcd.print(ssid);
-  // lcd.setCursor(0, 0);
-  // delay(500);
+  int n = WiFi.scanNetworks();
+  if (n == 0) {
+    Serial.println("No networks found");
+  } else {
+    Serial.println("Networks found:");
+    for (int i = 0; i < n; ++i) {
+      Serial.print(String(i + 1) + ": " + WiFi.SSID(i) + " (" + WiFi.RSSI(i) + ") ");
+      Serial.println((WiFi.encryptionType(i) == ENC_TYPE_NONE) ? "open" : "encrypted");
+    }
 
-  // while (status != WL_CONNECTED) {
-  //   lcd.print("Connecting...");
-  //   status = WiFi.begin(ssid, password);
+    // Ask user to select network
+    Serial.println("Enter the number of the network you want to connect to:");
+    while (!Serial.available());
+    int networkIndex = Serial.parseInt() - 1;
 
-  //   // Wait 10 seconds for connection
-  //   delay(5000);
+    if (networkIndex >= 0 && networkIndex < n) {
+      strncpy(ssid, WiFi.SSID(networkIndex), sizeof(ssid));
+      ssid[sizeof(ssid) - 1] = '\0'; // Ensure null-terminated string
+      Serial.println("Selected network: " + String(ssid));
 
-  //   if (status == WL_CONNECTED) {
-  //     lcd.clear();
-  //     lcd.print("Connected to WiFi");
-  //     delay(500);
-  //     printWiFiStatus();
-  //   } else {
-  //     lcd.clear();
-  //     lcd.print("Failed to connect");
-  //   }
-  // }
+      // Ask for the password if the network is encrypted
+      if (WiFi.encryptionType(networkIndex) != ENC_TYPE_NONE) {
+        Serial.println("Enter the password:");
+        while (!Serial.available());
+        Serial.readBytesUntil('\n', pass, sizeof(pass));
+        pass[sizeof(pass) - 1] = '\0'; // Ensure null-terminated string
+      } else {
+        pass[0] = '\0'; // No password needed for open networks
+      }
+
+      // Connect to the network
+      WiFi.begin(ssid, pass);
+
+      Serial.println("Connecting to " + String(ssid) + "...");
+      while (WiFi.status() != WL_CONNECTED) {
+        delay(500);
+        Serial.print(".");
+      }
+
+      Serial.println();
+      Serial.println("Connected to " + String(ssid));
+      Serial.print("IP address: ");
+      Serial.println(WiFi.localIP());
+    } else {
+      Serial.println("Invalid network selection");
+    }
+  }
 }
 
 void flow() // Interrupt function
@@ -225,7 +251,6 @@ void printWiFiStatus() {
   Serial.print(rssi);
   Serial.println(" dBm");
 }
-
 void readPH(){
   for(int i=0;i<10;i++)       //Get 10 sample value from the sensor for smooth the value
   { 
