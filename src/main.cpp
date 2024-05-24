@@ -7,10 +7,17 @@
 #include <DallasTemperature.h>
 #include "rgb_lcd.h"
 #include "Ultrasonic.h"
+#include <ArduinoBLE.h>
+#include <string>
+#include <vector>
 
 // Network credentials
 char ssid[32];
 char pass[64];
+
+const char * deviceServiceUuid = "0d932098-2031-4f39-90be-fdcbcf7e96e0";
+const char * deviceServiceRequestCharacteristicUuid = "0d932098-2031-4f39-90be-fdcbcf7e96e1";
+const char * deviceServiceRespondCharacteristicUuid = "0d932098-2031-4f39-90be-fdcbcf7e96e2";
 
 // Constants and definitions
 #define LED_PIN     4
@@ -56,6 +63,8 @@ void readPH();
 void getHigh12SectionValue(void);
 void getLow8SectionValue(void);
 int getWaterLevel(void);
+void scanNetworks();
+void handleNetworkSelection(String request);
 
 unsigned long int avgValue;  // Store the average value of the sensor feedback
 float b;
@@ -69,10 +78,28 @@ unsigned long cloopTime;
 unsigned long previousMillis = 0;
 const long interval = 1000;
 
+BLEService deviceService(deviceServiceUuid);
+BLEStringCharacteristic deviceServiceRequestCharacteristic(deviceServiceRequestCharacteristicUuid, BLERead | BLEWrite, 512); // Increased buffer size for network list
+BLEStringCharacteristic deviceServiceRespondCharacteristic(deviceServiceRespondCharacteristicUuid, BLERead | BLEWrite, 128);
+
 void setup() {
   strip.begin();
   colorWipe(strip.Color(0, 0, 0));
   Serial.begin(115200);
+  
+  // Initialize BLE
+  BLE.begin();
+  BLE.setLocalName("FishSee");
+  BLE.setAdvertisedService(deviceService);
+  
+  deviceService.addCharacteristic(deviceServiceRequestCharacteristic);
+  deviceService.addCharacteristic(deviceServiceRespondCharacteristic);
+  
+  BLE.addService(deviceService);
+  BLE.advertise();
+
+  Serial.println("Bluetooth device active, waiting for connections...");
+  
   Wire.begin();
   pinMode(TURBIDITY_PIN, INPUT);
   pinMode(flowsensor, INPUT);
@@ -87,64 +114,6 @@ void setup() {
   lcd.print("Hello, world!");
   delay(500);
   lcd.clear();
-
-  // Initialize the water level sensor
-  // No special initialization needed for I2C
-
-  // WiFi connection setup
-  Serial.println("Starting WiFi scan...");
-  if (WiFi.status() == WL_NO_SHIELD) {
-    Serial.println("WiFi shield not present");
-    while (true);
-  }
-
-  int n = WiFi.scanNetworks();
-  if (n == 0) {
-    Serial.println("No networks found");
-  } else {
-    Serial.println("Networks found:");
-    for (int i = 0; i < n; ++i) {
-      Serial.print(String(i + 1) + ": " + WiFi.SSID(i) + " (" + WiFi.RSSI(i) + ") ");
-      Serial.println((WiFi.encryptionType(i) == ENC_TYPE_NONE) ? "open" : "encrypted");
-    }
-
-    // Ask user to select network
-    Serial.println("Enter the number of the network you want to connect to:");
-    while (!Serial.available());
-    int networkIndex = Serial.parseInt() - 1;
-
-    if (networkIndex >= 0 && networkIndex < n) {
-      strncpy(ssid, WiFi.SSID(networkIndex), sizeof(ssid));
-      ssid[sizeof(ssid) - 1] = '\0'; // Ensure null-terminated string
-      Serial.println("Selected network: " + String(ssid));
-
-      // Ask for the password if the network is encrypted
-      if (WiFi.encryptionType(networkIndex) != ENC_TYPE_NONE) {
-        Serial.println("Enter the password:");
-        while (!Serial.available());
-        Serial.readBytesUntil('\n', pass, sizeof(pass));
-        pass[sizeof(pass) - 1] = '\0'; // Ensure null-terminated string
-      } else {
-        pass[0] = '\0'; // No password needed for open networks
-      }
-
-      // Connect to the network
-      WiFi.begin(ssid, pass);
-
-      Serial.println("Connecting to " + String(ssid) + "...");
-      while (WiFi.status() != WL_CONNECTED) {
-        delay(500);
-        Serial.print(".");
-      }
-
-      Serial.println();
-      Serial.println("Connected to " + String(ssid));
-      Serial.print("IP address: ");
-      Serial.println(WiFi.localIP());
-    } else {
-      Serial.println("Invalid network selection");
-    }
-  }
 }
 
 void flow() // Interrupt function
@@ -153,6 +122,25 @@ void flow() // Interrupt function
 }
 
 void loop() {
+  // BLE poll
+  BLEDevice central = BLE.central();
+
+  if (central) {
+    // While the central is connected
+    while (central.connected()) {
+      if (deviceServiceRequestCharacteristic.written()) {
+        String request = deviceServiceRequestCharacteristic.value();
+        Serial.println("Received request: " + request);
+        
+        if (request == "SCAN") {
+          scanNetworks();
+        } else if (request.startsWith("CONNECT:")) {
+          handleNetworkSelection(request);
+        }
+      }
+    }
+  }
+
   unsigned long currentMillis = millis();
 
   currentTime = millis();
@@ -167,9 +155,6 @@ void loop() {
       l_hour = (flow_frequency * 60 / 7.5); // (Pulse frequency x 60 min) / 7.5Q = flowrate in L/hour
       flow_frequency = 0; // Reset Counter
       interrupts(); // Enable interrupts
-
-      // Serial.print(l_hour, DEC); // Print litres/hour
-      // Serial.println(" L/hour");
    }
 
   // Non-blocking delay
@@ -251,6 +236,7 @@ void printWiFiStatus() {
   Serial.print(rssi);
   Serial.println(" dBm");
 }
+
 void readPH(){
   for(int i=0;i<10;i++)       //Get 10 sample value from the sensor for smooth the value
   { 
@@ -325,3 +311,46 @@ void getLow8SectionValue() {
   }
   delay(10);
 }
+
+void scanNetworks() {
+  int numSsid = WiFi.scanNetworks();
+  Serial.println("scan done");
+  if (numSsid == -1) {
+    Serial.println("Couldn't get a wifi connection");
+    return;
+  }
+
+  String networkList = "";
+  for (int thisNet = 0; thisNet < numSsid; thisNet++) {
+    networkList += WiFi.SSID(thisNet);
+    networkList += "\n";
+  }
+  
+  deviceServiceRespondCharacteristic.writeValue(networkList);
+  Serial.println(networkList);
+}
+
+void handleNetworkSelection(String request) {
+  int splitIndex = request.indexOf(":") + 1;
+  String networkInfo = request.substring(splitIndex);
+  splitIndex = networkInfo.indexOf(",");
+  
+  String selectedSSID = networkInfo.substring(0, splitIndex);
+  String password = networkInfo.substring(splitIndex + 1);
+
+  selectedSSID.toCharArray(ssid, 32);
+  password.toCharArray(pass, 64);
+
+  Serial.println("Connecting to " + String(ssid));
+
+  WiFi.begin(ssid, pass);
+
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+  }
+
+  Serial.println("WiFi connected");
+  printWiFiStatus();
+}
+
