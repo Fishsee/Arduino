@@ -8,16 +8,13 @@
 #include "rgb_lcd.h"
 #include "Ultrasonic.h"
 #include <ArduinoBLE.h>
-#include <string>
-#include <vector>
 
 // Network credentials
 char ssid[32];
 char pass[64];
 
-const char * deviceServiceUuid = "0d932098-2031-4f39-90be-fdcbcf7e96e0";
-const char * deviceServiceRequestCharacteristicUuid = "0d932098-2031-4f39-90be-fdcbcf7e96e1";
-const char * deviceServiceRespondCharacteristicUuid = "0d932098-2031-4f39-90be-fdcbcf7e96e2";
+#define SERVICE_UUID        "12345678-1234-5678-1234-56789abcdef0"
+#define CHARACTERISTIC_UUID "12345678-1234-5678-1234-56789abcdef1"
 
 // Constants and definitions
 #define LED_PIN     4
@@ -78,28 +75,30 @@ unsigned long cloopTime;
 unsigned long previousMillis = 0;
 const long interval = 1000;
 
-BLEService deviceService(deviceServiceUuid);
-BLEStringCharacteristic deviceServiceRequestCharacteristic(deviceServiceRequestCharacteristicUuid, BLERead | BLEWrite, 512); // Increased buffer size for network list
-BLEStringCharacteristic deviceServiceRespondCharacteristic(deviceServiceRespondCharacteristicUuid, BLERead | BLEWrite, 128);
+BLEService commandService(SERVICE_UUID); 
+BLECharacteristic commandCharacteristic(CHARACTERISTIC_UUID, BLERead | BLEWrite, 20);
 
 void setup() {
   strip.begin();
   colorWipe(strip.Color(0, 0, 0));
   Serial.begin(115200);
   
+  while (!Serial);
+
   // Initialize BLE
-  BLE.begin();
+  if (!BLE.begin()) {
+    Serial.println("Starting BLE failed!");
+    while (1);
+  }
+  
   BLE.setLocalName("FishSee");
-  BLE.setAdvertisedService(deviceService);
-  
-  deviceService.addCharacteristic(deviceServiceRequestCharacteristic);
-  deviceService.addCharacteristic(deviceServiceRespondCharacteristic);
-  
-  BLE.addService(deviceService);
+  BLE.setAdvertisedService(commandService);
+  commandService.addCharacteristic(commandCharacteristic);
+  LE.addService(commandService);
   BLE.advertise();
 
   Serial.println("Bluetooth device active, waiting for connections...");
-  
+
   Wire.begin();
   pinMode(TURBIDITY_PIN, INPUT);
   pinMode(flowsensor, INPUT);
@@ -116,29 +115,44 @@ void setup() {
   lcd.clear();
 }
 
-void flow() // Interrupt function
-{
-   flow_frequency++;
-}
-
 void loop() {
   // BLE poll
   BLEDevice central = BLE.central();
 
+  // If a central is connected to the peripheral
   if (central) {
-    // While the central is connected
+    Serial.print("Connected to central: ");
+    // Print the central's MAC address
+    Serial.println(central.address());
+
+    // While the central is still connected to the peripheral
     while (central.connected()) {
-      if (deviceServiceRequestCharacteristic.written()) {
-        String request = deviceServiceRequestCharacteristic.value();
-        Serial.println("Received request: " + request);
-        
-        if (request == "SCAN") {
-          scanNetworks();
-        } else if (request.startsWith("CONNECT:")) {
-          handleNetworkSelection(request);
+      if (commandCharacteristic.written()) {
+        // Get the value of the characteristic
+        int len = commandCharacteristic.valueLength();
+        char command[len + 1];
+        memcpy(command, commandCharacteristic.value(), len);
+        command[len] = '\0'; // Null-terminate the string
+
+        Serial.print("Command received: ");
+        Serial.println(command);
+
+        // Handle different commands
+        if (strcmp(command, "ON") == 0) {
+          Serial.println("Turning ON the device...");
+          // Add your code to turn ON the device
+        } else if (strcmp(command, "OFF") == 0) {
+          Serial.println("Turning OFF the device...");
+          // Add your code to turn OFF the device
+        } else {
+          Serial.println("Unknown command");
         }
       }
     }
+
+    // When the central disconnects, print it out:
+    Serial.print("Disconnected from central: ");
+    Serial.println(central.address());
   }
 
   unsigned long currentMillis = millis();
@@ -288,6 +302,11 @@ int getWaterLevel() {
   }
 
   return trig_section * 5;  // Each section represents approximately 5% of the water level
+}
+
+void flow() // Interrupt function
+{
+   flow_frequency++;
 }
 
 void getHigh12SectionValue() {
