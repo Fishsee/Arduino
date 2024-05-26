@@ -5,20 +5,23 @@
 #include <Wire.h>
 #include <OneWire.h>
 #include <DallasTemperature.h>
-#include "rgb_lcd.h"
-#include "Ultrasonic.h"
-#include "WiFiS3.h"
+#include <rgb_lcd.h>
+#include <Ultrasonic.h>
+#include <WiFiS3.h>
 #include <ArduinoBLE.h>
+#include <HttpClient.h>
+#include <WiFiClient.h>
+#include <ArduinoJson.h>  // Include the ArduinoJson library
 
-// Netwerk gegevens om in te kunnen loggen op netwerk
+// Network credentials
 char ssid[32];
 char pass[64];
 
-// UUID voor de bluetooth module
+// UUID for the Bluetooth module
 #define SERVICE_UUID        "12345678-1234-5678-1234-56789abcdef0"
 #define CHARACTERISTIC_UUID "12345678-1234-5678-1234-56789abcdef1"
 
-// Pin declaraties
+// Pin declarations
 #define LED_PIN     4
 #define NUM_LEDS    60
 #define LCD_ADDRESS 0x62
@@ -55,33 +58,48 @@ float tempC = 0.0;
 float phValueCurrent = 0.0;
 unsigned long lastDebounceTime = 0;
 unsigned long debounceDelay = 50; 
+bool bluetoothActive = true; // Flag to indicate if Bluetooth is active
+unsigned long lastSentTime = 0; // To track the last time data was sent
+const long sendInterval = 3600000; // 1 hour in milliseconds
 
-// Specifieke libraty variables
+
+// Specific library variables
 OneWire oneWire(TEMPERATURE_PIN);
 DallasTemperature sensors(&oneWire);
 rgb_lcd lcd;
 Adafruit_NeoPixel strip(NUM_LEDS, LED_PIN, NEO_RGB + NEO_KHZ800);
 Ultrasonic ultrasonic(ULTRASONIC_PIN);
 BLEService commandService(SERVICE_UUID); 
-BLECharacteristic commandCharacteristic(CHARACTERISTIC_UUID, BLERead | BLEWrite, 20);
+BLECharacteristic commandCharacteristic(CHARACTERISTIC_UUID, BLERead | BLEWrite, 128);
 
-// Predeclered functions
+// Arrays to hold network information
+const int MAX_NETWORKS = 20;
+char networkSSIDs[MAX_NETWORKS][32];
+int networkEncTypes[MAX_NETWORKS];
+int numNetworks = 0;
+
+// Function prototypes
 void colorWipe(uint32_t color);
 void printWiFiStatus();
 float getTemp();
 void checkTurbidity();
 void flow();
 void readPH();
-void getHigh12SectionValue(void);
-void getLow8SectionValue(void);
-int getWaterLevel(void);
+void getHigh12SectionValue();
+void getLow8SectionValue();
+int getWaterLevel();
 void scanNetworks();
-void handleNetworkSelection(String request);
+void handleNetworkSelection();
 void updateDisplay();
 void updateCurrentScreen();
+void displayMessage(String line1, String line2);
+void connectToNetwork();
+void enterPassword(const char* pwd);
+String gatherSensorDataAsJson();
+void sendSensorDataToApi(String jsonData);
 
 void setup() {
-    // Begin functions
+    // Initialization
     Serial.begin(115200);
     while(!Serial);
     strip.begin();
@@ -91,7 +109,7 @@ void setup() {
     lcd.print("FishSee!");
     if (!BLE.begin()) {
         lcd.setCursor(0,1);
-        lcd.print("BT Faal, Reboot");
+        lcd.print("BT Fail, Reboot");
         while (1);
     }
 
@@ -103,9 +121,9 @@ void setup() {
     BLE.addService(commandService);
     BLE.advertise();
     lcd.setCursor(0,1);
-    lcd.print("Bluetooth actief!");
+    lcd.print("Bluetooth active!");
   
-    // Initializeren pinnen
+    // Initialize pins
     pinMode(TURBIDITY_PIN, INPUT);
     pinMode(FLOW_PIN, INPUT);
     pinMode(BUTTON_PIN, OUTPUT);
@@ -118,42 +136,75 @@ void setup() {
 }
 
 void loop() {
-    BLEDevice central = BLE.central();
-    if(central) {
-        lcd.setCursor(0,0);
-        lcd.print("Bluetooth gelukt");
-        lcd.setCursor(0,1);
-        lcd.print(central.address());
-        while(central.connected()) {
-            if(commandCharacteristic.written()) {
-                int len = commandCharacteristic.valueLength();
-                char command[len + 1];
-                memcpy(command, commandCharacteristic.value(), len);
-                command[len] = '\0';
-                if(strcmp(command, "aan") == 0) {
-                  colorWipe(strip.Color(255, 255, 255));
-                } else if(strcmp(command, "uit") == 0) {
-                  colorWipe(strip.Color(0, 0, 0));
-                } else {
-                  Serial.println("Unknown command");
+    if (bluetoothActive) {
+        // Handle Bluetooth operations
+        BLEDevice central = BLE.central();
+        if(central) {
+            displayMessage("Bluetooth connected", central.address());
+            while(central.connected()) {
+                if(commandCharacteristic.written()) {
+                    int len = commandCharacteristic.valueLength();
+                    char command[len + 1];
+                    memcpy(command, commandCharacteristic.value(), len);
+                    command[len] = '\0';
+                    Serial.println(command); // For debugging purposes
+
+                    if(strcmp(command, "aan") == 0) {
+                        colorWipe(strip.Color(255, 255, 255));
+                    } else if(strcmp(command, "uit") == 0) {
+                        colorWipe(strip.Color(0, 0, 0));
+                    } else if(strcmp(command, "scan") == 0) {
+                        bluetoothActive = false; // Temporarily deactivate Bluetooth
+                        scanNetworks();
+                        bluetoothActive = true; // Reactivate Bluetooth after WiFi operations
+                    } else if(strcmp(command, "list") == 0) {
+                        bluetoothActive = false; // Temporarily deactivate Bluetooth
+                        handleNetworkSelection();
+                        bluetoothActive = true; // Reactivate Bluetooth after WiFi operations
+                    } else if(strcmp(command, "status") == 0) {
+                        bluetoothActive = false; // Temporarily deactivate Bluetooth
+                        printWiFiStatus();
+                        bluetoothActive = true; // Reactivate Bluetooth after WiFi operations
+                    } else if(strncmp(command, "connect", 7) == 0) {
+                        int networkIndex = atoi(&command[8]) - 1; // Extract network index
+                        if(networkIndex >= 0 && networkIndex < numNetworks) {
+                            strncpy(ssid, networkSSIDs[networkIndex], sizeof(ssid) - 1);
+                            ssid[sizeof(ssid) - 1] = '\0'; // Ensure null-terminated string
+                            displayMessage("Selected:", ssid);
+                        } else {
+                            Serial.println("Invalid network index");
+                        }
+                    } else if(strncmp(command, "password", 8) == 0) {
+                        strncpy(pass, &command[9], sizeof(pass) - 1);
+                        pass[sizeof(pass) - 1] = '\0'; // Ensure null-terminated string
+                        bluetoothActive = false; // Temporarily deactivate Bluetooth
+                        connectToNetwork();
+                        bluetoothActive = true; // Reactivate Bluetooth after WiFi operations
+                    } else {
+                        Serial.println("Unknown command");
+                    }
                 }
             }
+            displayMessage("Bluetooth:", "No connection");
+            delay(1000);
         }
-        lcd.clear();
-        lcd.setCursor(0,0);
-        lcd.print("Bluetooth:");
-        lcd.setCursor(0,1);
-        lcd.print("Geen verbinding");
-        delay(1000);
+    } else {
+        // Handle WiFi operations
+        unsigned long wifiTimeout = millis() + 30000; // Timeout for WiFi operations
+        scanNetworks();
+        while (millis() < wifiTimeout) {
+            // Wait for WiFi operations to complete
+        }
     }
+    
     unsigned long currentMillis = millis();
     currentTime = millis();
     if(currentTime >= (cloopTime + 1000)) {
-      cloopTime = currentTime; 
-      noInterrupts();
-      l_hour = (flow_frequency * 60 / 7.5); 
-      flow_frequency = 0; 
-      interrupts();
+        cloopTime = currentTime; 
+        noInterrupts();
+        l_hour = (flow_frequency * 60 / 7.5); 
+        flow_frequency = 0; 
+        interrupts();
     }
     distance_cm = ultrasonic.distanceRead(CM);
     light_level = analogRead(LIGHT_SENSOR_PIN);
@@ -164,7 +215,7 @@ void loop() {
     Serial.print("Button State:");
     Serial.println(reading);
     if (reading == HIGH ) {
-        Serial.println("Gedrukt");
+        Serial.println("Pressed");
         currentScreen++;
         if (currentScreen > 6) {
             currentScreen = 0;
@@ -172,12 +223,164 @@ void loop() {
         Serial.println(currentScreen);
         updateCurrentScreen();
     }
-    if (light_level < 400) {
+    if (light_level < 200) {
         colorWipe(strip.Color(255, 255, 255));
     } else {
         colorWipe(strip.Color(0, 0, 0));
     }
     updateCurrentScreen();
+
+  if (WiFi.status() == WL_CONNECTED) {
+    // Check if it's time to send sensor data to the API
+    if (currentMillis - lastSentTime >= sendInterval) {
+        lastSentTime = currentMillis;
+        String jsonData = gatherSensorDataAsJson();
+        sendSensorDataToApi(jsonData);
+    }
+  }
+}
+
+String gatherSensorDataAsJson() {
+    // Gather all sensor data and format it into a JSON string
+    DynamicJsonDocument doc(512); // Adjust size as needed
+    doc["tempC"] = tempC;
+    doc["distance_cm"] = distance_cm;
+    doc["light_level"] = light_level;
+    doc["water_level"] = water_level;
+    doc["flow_rate"] = l_hour;
+    doc["phValueCurrent"] = phValueCurrent;
+    doc["turbidity_status"] = turbidity_status;
+    String jsonData;
+    serializeJson(doc, jsonData);
+    return jsonData;
+}
+
+void sendSensorDataToApi(arduino::String sensorData) {
+    WiFiClient wifiClient;
+    HttpClient httpClient(wifiClient);
+
+    const char* serverName = "example.com";
+    const char* endpoint = "/api/data";
+    const char* contentType = "application/json";
+
+    // Begin the HTTP request
+    httpClient.beginRequest();
+    httpClient.post(serverName, endpoint, contentType, sensorData.c_str());
+    httpClient.endRequest();
+
+    // Read the response status code and body
+    int statusCode = httpClient.responseStatusCode();
+    String response;
+    if (statusCode >= 0) {
+        httpClient.skipResponseHeaders();
+        while (httpClient.available()) {
+            char c = httpClient.read();
+            response += c;
+        }
+    } else {
+        response = "Error receiving response";
+    }
+
+    // Print the response (optional)
+    Serial.print("Status code: ");
+    Serial.println(statusCode);
+    Serial.print("Response: ");
+    Serial.println(response);
+}
+
+void displayMessage(String line1, String line2) {
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print(line1);
+    lcd.setCursor(0, 1);
+    lcd.print(line2);
+}
+
+void scanNetworks() {
+    displayMessage("Wifi:", "Scanning....");
+    if (WiFi.status() == WL_NO_SHIELD) {
+        displayMessage("Wifi:", "No module");
+        while (true);
+    }
+    
+    numNetworks = WiFi.scanNetworks();
+    if (numNetworks == 0) {
+        displayMessage("Wifi:", "No Networks");
+    } else {
+        for (int i = 0; i < numNetworks && i < MAX_NETWORKS; ++i) {
+            strncpy(networkSSIDs[i], WiFi.SSID(i), sizeof(networkSSIDs[i]) - 1);
+            networkSSIDs[i][sizeof(networkSSIDs[i]) - 1] = '\0'; // Ensure null-terminated string
+            networkEncTypes[i] = WiFi.encryptionType(i);
+        }
+    }   
+    displayMessage("Wifi:", "Gevonden");
+}
+
+void handleNetworkSelection() {
+    displayMessage("Select Network", "");
+    for (int i = 0; i < numNetworks && i < MAX_NETWORKS; ++i) {
+        Serial.print(i + 1);
+        Serial.print(": ");
+        Serial.print(networkSSIDs[i]);
+        Serial.print(" (");
+        Serial.print(WiFi.RSSI(i));
+        Serial.println(")");
+    }
+    if (commandCharacteristic.written()) {
+        const uint8_t* value = commandCharacteristic.value();
+        int len = commandCharacteristic.valueLength();
+        char command[len + 1];
+        strncpy(command, (char*)value, len);
+        command[len] = '\0';
+        int selection = atoi(command);
+        if (selection > 0 && selection <= numNetworks) {
+            displayMessage("Selected:", networkSSIDs[selection - 1]);
+            strncpy(ssid, networkSSIDs[selection - 1], sizeof(ssid) - 1);
+            ssid[sizeof(ssid) - 1] = '\0'; // Ensure null-terminated string
+
+            // Assume password entry via Bluetooth
+            displayMessage("Enter Password:", "");
+            while (!commandCharacteristic.written()) {
+                // Wait for password entry
+            }
+            if (commandCharacteristic.written()) {
+                strncpy(pass, (char*)commandCharacteristic.value(), sizeof(pass) - 1);
+                pass[sizeof(pass) - 1] = '\0'; // Ensure null-terminated string
+                connectToNetwork();
+            }
+        }
+    }
+}
+
+void connectToNetwork() {
+    displayMessage("Connecting to:", ssid);
+    WiFi.begin(ssid, pass);
+
+    unsigned long startTime = millis();
+    while (WiFi.status() != WL_CONNECTED && (millis() - startTime < 10000)) {
+        delay(500);
+        Serial.print(".");
+    }
+
+    if (WiFi.status() == WL_CONNECTED) {
+        displayMessage("Connected to:", ssid);
+        printWiFiStatus();
+    } else {
+        displayMessage("Failed to", "connect");
+    }
+}
+
+void printWiFiStatus() {
+    Serial.print("SSID: ");
+    Serial.println(WiFi.SSID());
+
+    IPAddress ip = WiFi.localIP();
+    Serial.print("IP Address: ");
+    Serial.println(ip);
+
+    long rssi = WiFi.RSSI();
+    Serial.print("Signal strength (RSSI):");
+    Serial.println(rssi);
 }
 
 void flow() {
@@ -203,18 +406,6 @@ void colorWipe(uint32_t color) {
     strip.show();
 }
 
-void printWiFiStatus() {
-    Serial.print("SSID: ");
-    Serial.println(WiFi.SSID());
-    IPAddress ip = WiFi.localIP();
-    Serial.print("IP Address: ");
-    Serial.println(ip);
-    long rssi = WiFi.RSSI();
-    Serial.print("Signal strength (RSSI):");
-    Serial.print(rssi);
-    Serial.println(" dBm");
-}
-
 void readPH(){
     for(int i=0;i<10;i++) { 
         buf[i]=analogRead(PH_SENSOR_PIN);
@@ -238,7 +429,7 @@ void readPH(){
     phValueCurrent = phValue;       
 }
 
-void getHigh12SectionValue(void) {
+void getHigh12SectionValue() {
     Wire.beginTransmission(ATTINY1_HIGH_ADDR);
     Wire.write(NO_TOUCH);
     Wire.endTransmission();
@@ -251,17 +442,17 @@ void getHigh12SectionValue(void) {
     }
 }
 
-void getLow8SectionValue(void) {
-  Wire.beginTransmission(ATTINY2_LOW_ADDR);
-  Wire.write(NO_TOUCH);
-  Wire.endTransmission();
-  delay(50);
-  Wire.requestFrom(ATTINY2_LOW_ADDR, 8);
-  if (Wire.available() == 8) {
-    for (int i = 0; i < 8; i++) {
-      low_data[i] = Wire.read();
+void getLow8SectionValue() {
+    Wire.beginTransmission(ATTINY2_LOW_ADDR);
+    Wire.write(NO_TOUCH);
+    Wire.endTransmission();
+    delay(50);
+    Wire.requestFrom(ATTINY2_LOW_ADDR, 8);
+    if (Wire.available() == 8) {
+        for (int i = 0; i < 8; i++) {
+        low_data[i] = Wire.read();
+        }
     }
-  }
 }
 
 int getWaterLevel() {
@@ -293,47 +484,40 @@ void updateCurrentScreen() {
 
   switch (currentScreen) {
     case 0:
-        lcd.clear();
         lcd.print("Water Level:");
         lcd.setCursor(0, 1);
         lcd.print(water_level);
         lcd.print("%");
         break;
     case 1:
-        lcd.clear();
         lcd.print("Distance:");
         lcd.setCursor(0, 1);
         lcd.print(distance_cm);
         lcd.print(" cm");
         break;
     case 2:
-        lcd.clear();
         lcd.print("Light Level:");
         lcd.setCursor(0, 1);
         lcd.print(light_level);
         break;
     case 3:
-        lcd.clear();
         lcd.print("Temperature:");
         lcd.setCursor(0, 1);
         lcd.print(tempC);
         lcd.print(" C");
         break;
     case 4:
-        lcd.clear();
         checkTurbidity();
         lcd.print("Turbidity:");
         lcd.setCursor(0, 1);
         lcd.print(turbidity_status);
         break;
     case 5:
-        lcd.clear();
         lcd.print("PH:"); 
         lcd.setCursor(0, 1);
         lcd.print(phValueCurrent);
         break;
     case 6:
-        lcd.clear();
         lcd.print("Flow sensor:");
         lcd.setCursor(0,1);
         lcd.print(flow_frequency);
