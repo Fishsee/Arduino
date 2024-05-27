@@ -12,6 +12,7 @@
 #include <HttpClient.h>
 #include <WiFiClient.h>
 #include <ArduinoJson.h>
+#include <EEPROM.h>
 
 // Network credentials
 char ssid[32];
@@ -66,7 +67,8 @@ const long sendInterval = 3600000; // 1 hour in milliseconds
 #define servoOpen 1600 // value for servo being open
 #define servoClosed 950 // value for servo being closed
 #define servoDelay 20 
-
+int ssidAddress = 0;
+int passwordAddress = 32;
 
 // Specific library variables
 OneWire oneWire(TEMPERATURE_PIN);
@@ -99,11 +101,12 @@ void updateDisplay();
 void updateCurrentScreen();
 void displayMessage(String line1, String line2);
 void connectToNetwork();
-void enterPassword(const char* pwd);
 String gatherSensorDataAsJson();
 void sendSensorDataToApi(String jsonData);
 void servo(int pulse);
-
+void writeStringToEEPROM(int address, String data);
+void readStringFromEEPROM(int address, char* buffer, int bufferSize);
+bool isEEPROMEmpty();
 
 void setup() {
     // Initialization
@@ -115,8 +118,7 @@ void setup() {
     lcd.setRGB(255, 255, 255);
     lcd.print("FishSee!");
     if (!BLE.begin()) {
-        lcd.setCursor(0,1);
-        lcd.print("BT Fail, Reboot");
+        displayMessage("FishSee", "Bluetooth stuk");
         while (1);
     }
 
@@ -127,8 +129,7 @@ void setup() {
     commandService.addCharacteristic(commandCharacteristic);
     BLE.addService(commandService);
     BLE.advertise();
-    lcd.setCursor(0,1);
-    lcd.print("Bluetooth active!");
+    displayMessage("Fishee!", "Buetooth actief");
   
     // Initialize pins
     pinMode(TURBIDITY_PIN, INPUT);
@@ -139,6 +140,14 @@ void setup() {
     pinMode(SERVO_PIN, OUTPUT);
     digitalWrite(SERVO_PIN, LOW);
 
+    if (isEEPROMEmpty()) {
+      Serial.println("EEPROM is empty.");
+    } else {
+      readStringFromEEPROM(ssidAddress, ssid, sizeof(ssid));
+      readStringFromEEPROM(passwordAddress, pass, sizeof(pass));
+      connectToNetwork();
+    }
+    
     currentTime = millis();
     cloopTime = currentTime;
     delay(500);
@@ -180,15 +189,20 @@ void loop() {
                             strncpy(ssid, networkSSIDs[networkIndex], sizeof(ssid) - 1);
                             ssid[sizeof(ssid) - 1] = '\0'; // Ensure null-terminated string
                             displayMessage("Selected:", ssid);
+                            writeStringToEEPROM(ssidAddress, ssid);
                         } else {
-                            Serial.println("Invalid network index");
+                            displayMessage("Wifi:", "Ongeldig netwerk");
                         }
                     } else if(strncmp(command, "password", 8) == 0) {
                         strncpy(pass, &command[9], sizeof(pass) - 1);
                         pass[sizeof(pass) - 1] = '\0'; // Ensure null-terminated string
                         bluetoothActive = false; // Temporarily deactivate Bluetooth
                         connectToNetwork();
+                        writeStringToEEPROM(passwordAddress, pass);
                         bluetoothActive = true; // Reactivate Bluetooth after WiFi operations
+                    } else if(strncmp(command, "api", 8) == 0) {
+                        String jsonData = gatherSensorDataAsJson();
+                        sendSensorDataToApi(jsonData);
                     } else {
                         Serial.println("Unknown command");
                     }
@@ -220,13 +234,11 @@ void loop() {
     water_level = getWaterLevel();
     sensors.requestTemperatures();
     tempC = sensors.getTempCByIndex(0);
+    checkTurbidity();
     int reading = digitalRead(BUTTON_PIN);
-    Serial.print("Button State:");
-    Serial.println(reading);
     if (reading == HIGH ) {
-        Serial.println("Pressed");
         currentScreen++;
-        if (currentScreen > 6) {
+        if (currentScreen > 7) {
             currentScreen = 0;
         }
         Serial.println(currentScreen);
@@ -249,6 +261,34 @@ void loop() {
   }
 }
 
+bool isEEPROMEmpty() {
+  for (int i = 0; i < EEPROM.length(); i++) {
+    if (EEPROM.read(i) != 255) { // Check if byte is not equal to default value
+      return false; // EEPROM is not empty
+    }
+  }
+  return true; // EEPROM is empty
+}
+
+void writeStringToEEPROM(int address, String data) {
+  char charBuf[data.length() + 1];
+  data.toCharArray(charBuf, sizeof(charBuf));
+  for (int i = 0; i < data.length(); i++) {
+    EEPROM.write(address + i, charBuf[i]);
+  }
+  EEPROM.write(address + data.length(), '\0'); // Null-terminate the string
+}
+
+void readStringFromEEPROM(int address, char* buffer, int bufferSize) {
+  int i = 0;
+  char ch = EEPROM.read(address + i);
+  while (ch != '\0' && i < bufferSize - 1) {
+    buffer[i] = ch;
+    ch = EEPROM.read(address + ++i);
+  }
+  buffer[i] = '\0'; // Null-terminate the string
+}
+
 String gatherSensorDataAsJson() {
     // Gather all sensor data and format it into a JSON string
     DynamicJsonDocument doc(512); // Adjust size as needed
@@ -268,8 +308,8 @@ void sendSensorDataToApi(arduino::String sensorData) {
     WiFiClient wifiClient;
     HttpClient httpClient(wifiClient);
 
-    const char* serverName = "example.com";
-    const char* endpoint = "/api/data";
+    const char* serverName = "87.195.164.211:8000";
+    const char* endpoint = "/api/arduino";
     const char* contentType = "application/json";
 
     // Begin the HTTP request
@@ -419,26 +459,25 @@ void colorWipe(uint32_t color) {
 }
 
 void readPH(){
-    for(int i=0;i<10;i++) { 
-        buf[i]=analogRead(PH_SENSOR_PIN);
-        delay(10);
+  for(int i=0;i<10;i++) { 
+    buf[i]=analogRead(PH_SENSOR_PIN);
+    delay(10);
+  }
+  for(int i=0;i<9;i++)  {
+    for(int j=i+1;j<10;j++) {
+      if(buf[i]>buf[j]) {
+        temp=buf[i];
+        buf[i]=buf[j];
+        buf[j]=temp;
+      }
     }
-    for(int i=0;i<9;i++) {
-        for(int j=i+1;j<10;j++) {
-            if(buf[i]>buf[j]) {
-                temp=buf[i];
-                buf[i]=buf[j];
-                buf[j]=temp;
-            }
-        }
-    }
-    avgValue=0;
-    for(int i=2;i<8;i++) {                     
-        avgValue+=buf[i];
-    }
-    float phValue=(float)avgValue*5.0/1024/6; 
-    phValue=3.5*phValue;               
-    phValueCurrent = phValue;       
+  }
+  avgValue=0;
+  for(int i=2;i<8;i++)    
+    avgValue+=buf[i];
+  Serial.println(avgValue);
+  float phValue=(float)avgValue*5.0/1024/6; 
+  phValue=3.5*phValue+0.54;         
 }
 
 void getHigh12SectionValue() {
@@ -504,44 +543,31 @@ void updateCurrentScreen() {
 
   switch (currentScreen) {
     case 0:
-        lcd.print("Water Level:");
-        lcd.setCursor(0, 1);
-        lcd.print(water_level);
-        lcd.print("%");
+        displayMessage("Water Level:",String(water_level) + " %");
         break;
     case 1:
-        lcd.print("Distance:");
-        lcd.setCursor(0, 1);
-        lcd.print(distance_cm);
-        lcd.print(" cm");
+        displayMessage("Distance:",String(distance_cm) + " cm");
         break;
     case 2:
-        lcd.print("Light Level:");
-        lcd.setCursor(0, 1);
-        lcd.print(light_level);
+        displayMessage("Light Level:",String(light_level));
         break;
     case 3:
-        lcd.print("Temperature:");
-        lcd.setCursor(0, 1);
-        lcd.print(tempC);
-        lcd.print(" C");
+        displayMessage("Temperature:",String(tempC) + " C");
         break;
     case 4:
-        checkTurbidity();
-        lcd.print("Turbidity:");
-        lcd.setCursor(0, 1);
-        lcd.print(turbidity);
-        lcd.print("%");
+        displayMessage("Turbidity:",String(turbidity) + " %");
         break;
     case 5:
-        lcd.print("PH:"); 
-        lcd.setCursor(0, 1);
-        lcd.print(phValueCurrent);
+        displayMessage("PH:",String(phValueCurrent));
         break;
     case 6:
-        lcd.print("Flow sensor:");
-        lcd.setCursor(0,1);
-        lcd.print(flow_frequency);
+        displayMessage("Flow sensor:",String(flow_frequency) + " hz");
         break;
+    case 7: 
+        if (WiFi.status() == WL_CONNECTED) {
+          displayMessage("Wifi:", String(WiFi.SSID()));
+        } else {
+          displayMessage("Wifi:", "Niet verbonden");
+        }
   }
 }
