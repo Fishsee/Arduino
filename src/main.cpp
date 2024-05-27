@@ -35,6 +35,7 @@ char pass[64];
 #define ATTINY1_HIGH_ADDR   0x78
 #define ATTINY2_LOW_ADDR   0x77
 #define NO_TOUCH       0xFE
+#define SERVO_PIN 7
 
 // Variables
 char turbidity_status[10] = "Null";
@@ -61,6 +62,9 @@ unsigned long debounceDelay = 50;
 bool bluetoothActive = true; // Flag to indicate if Bluetooth is active
 unsigned long lastSentTime = 0; // To track the last time data was sent
 const long sendInterval = 3600000; // 1 hour in milliseconds
+#define servoOpen 1600 // value for servo being open
+#define servoClosed 950 // value for servo being closed
+#define servoDelay 20 
 
 
 // Specific library variables
@@ -97,6 +101,8 @@ void connectToNetwork();
 void enterPassword(const char* pwd);
 String gatherSensorDataAsJson();
 void sendSensorDataToApi(String jsonData);
+void servo(int pulse);
+
 
 void setup() {
     // Initialization
@@ -129,6 +135,8 @@ void setup() {
     pinMode(BUTTON_PIN, OUTPUT);
     digitalWrite(FLOW_PIN, HIGH); 
     attachInterrupt(digitalPinToInterrupt(FLOW_PIN), flow, RISING); 
+    pinMode(SERVO_PIN, OUTPUT);
+    digitalWrite(SERVO_PIN, LOW);
 
     currentTime = millis();
     cloopTime = currentTime;
@@ -477,6 +485,14 @@ int getWaterLevel() {
     }
 
     return trig_section * 5;  
+}
+
+void servo(int pulse) {
+      for (int i = 0; i < 8; i++) {
+        digitalWrite(SERVO_PIN, HIGH);
+        delayMicroseconds(pulse);
+        digitalWrite(SERVO_PIN, LOW);
+      }
 }
 
 void updateCurrentScreen() {
