@@ -11,7 +11,7 @@
 #include <ArduinoBLE.h>
 #include <HttpClient.h>
 #include <WiFiClient.h>
-#include <ArduinoJson.h>  // Include the ArduinoJson library
+#include <ArduinoJson.h>
 
 // Network credentials
 char ssid[32];
