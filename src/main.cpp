@@ -55,6 +55,7 @@ int currentScreen = 0;
 int water_level = 0;
 int distance_cm = 0;
 int light_level = 0;
+int turbidity = 0;
 float tempC = 0.0;
 float phValueCurrent = 0.0;
 unsigned long lastDebounceTime = 0;
@@ -396,15 +397,18 @@ void flow() {
 }
 
 void checkTurbidity() {
-    int sensorValue = analogRead(TURBIDITY_PIN); 
-    int turbidity = map(sensorValue, 0, 640, 100, 0);  
-    if(turbidity < 20) {
-        strcpy(turbidity_status, "Clear");
-    } else if (turbidity <= 50) {
-        strcpy(turbidity_status, "Unclear");
-    } else {
-        strcpy(turbidity_status, "Gross");
-    }
+    // Define the minimum and maximum sensor values based on calibration
+    const int minAnalogValue = 0; // Replace with the actual value for clear water
+    const int maxAnalogValue = 640; // Replace with the actual value for highly turbid water
+
+    // Read the sensor value
+    int sensorValue = analogRead(TURBIDITY_PIN);
+
+    // Map the sensor value to a percentage (0% to 100%)
+    turbidity = map(sensorValue, minAnalogValue, maxAnalogValue, 100, 0);
+
+    // Constrain the value to ensure it stays within 0-100%
+    turbidity = constrain(turbidity, 0, 100);
 }
 
 void colorWipe(uint32_t color) {
@@ -526,7 +530,8 @@ void updateCurrentScreen() {
         checkTurbidity();
         lcd.print("Turbidity:");
         lcd.setCursor(0, 1);
-        lcd.print(turbidity_status);
+        lcd.print(turbidity);
+        lcd.print("%");
         break;
     case 5:
         lcd.print("PH:"); 
