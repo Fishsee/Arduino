@@ -147,7 +147,7 @@ void setup() {
       readStringFromEEPROM(passwordAddress, pass, sizeof(pass));
       connectToNetwork();
     }
-    
+
     currentTime = millis();
     cloopTime = currentTime;
     delay(500);
@@ -301,6 +301,7 @@ String gatherSensorDataAsJson() {
     doc["turbidity_status"] = turbidity_status;
     String jsonData;
     serializeJson(doc, jsonData);
+    Serial.println(jsonData);
     return jsonData;
 }
 
@@ -309,7 +310,7 @@ void sendSensorDataToApi(arduino::String sensorData) {
     HttpClient httpClient(wifiClient);
 
     const char* serverName = "87.195.164.211:8000";
-    const char* endpoint = "/api/arduino";
+    const char* endpoint = "/api/recieve-data";
     const char* contentType = "application/json";
 
     // Begin the HTTP request
