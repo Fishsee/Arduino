@@ -1,7 +1,6 @@
 #include <Arduino.h>
 #include <SPI.h>
 #include <WiFi.h>
-#include <WiFiS3.h>
 #include <Adafruit_NeoPixel.h>
 #include <Wire.h>
 #include <OneWire.h>
@@ -14,15 +13,15 @@
 #include <ArduinoJson.h>
 #include <EEPROM.h>
 
-// Netwerkgegevens
+// Network credentials
 char ssid[32];
 char pass[64];
 
-// UUIDs voor Bluetooth module
+// UUIDs for Bluetooth module
 #define SERVICE_UUID        "12345678-1234-5678-1234-56789abcdef0"
 #define CHARACTERISTIC_UUID "12345678-1234-5678-1234-56789abcdef1"
 
-// Pindefinities
+// Pin definitions
 #define LED_PIN     4
 #define NUM_LEDS    60
 #define LCD_ADDRESS 0x62
@@ -38,7 +37,7 @@ char pass[64];
 #define NO_TOUCH       0xFE
 #define SERVO_PIN 7
 
-// Variabelen
+// Variables
 int turbidity_status = 0;
 unsigned char low_data[8] = {0};
 unsigned char high_data[12] = {0};
@@ -72,7 +71,7 @@ int passwordAddress = 32;
 unsigned long lastApiCallTime = 0;    // Last time the sensor data was sent
 const unsigned long apiCallInterval = 30000;  // Interval to send sensor data (e.g., every 60 seconds)
 
-// Specifieke bibliotheken instanties
+// Specific library instances
 OneWire oneWire(TEMPERATURE_PIN);
 DallasTemperature sensors(&oneWire);
 rgb_lcd lcd;
@@ -81,13 +80,13 @@ Ultrasonic ultrasonic(ULTRASONIC_PIN);
 BLEService commandService(SERVICE_UUID); 
 BLECharacteristic commandCharacteristic(CHARACTERISTIC_UUID, BLERead | BLEWrite, 128);
 
-// Arrays voor netwerkinformatie
+// Arrays for network information
 const int MAX_NETWORKS = 20;
 char networkSSIDs[MAX_NETWORKS][32];
 int networkEncTypes[MAX_NETWORKS];
 int numNetworks = 0;
 
-// Functieprototypes
+// Function prototypes
 void colorWipe(uint32_t color);
 void printWiFiStatus();
 float getTemp();
@@ -111,7 +110,7 @@ void readStringFromEEPROM(int address, char* buffer, int bufferSize);
 bool isEEPROMEmpty();
 void checkBluetoothConnection();
 
-// Setup-functie
+// Setup function
 void setup() {
     Serial.begin(115200);
     while(!Serial);
@@ -121,10 +120,10 @@ void setup() {
     lcd.setRGB(255, 255, 255);
     displayMessage("FishSee", "");
     delay(1000);
-    colorWipe(strip.Color(0, 0, 0)); // Zet led uit bij opstarten.
+    colorWipe(strip.Color(0, 0, 0)); // Turn off LEDs at startup.
     checkBluetoothConnection();
     
-    // pin modes
+    // Pin modes
     pinMode(TURBIDITY_PIN, INPUT);
     pinMode(FLOW_PIN, INPUT);
     pinMode(BUTTON_PIN, OUTPUT);
@@ -134,7 +133,7 @@ void setup() {
     digitalWrite(SERVO_PIN, LOW);
     
     if (isEEPROMEmpty()) {
-        displayMessage("Wifi:", "Niet ingesteld");
+        displayMessage("Wifi:", "Not Set");
     } else {
         readStringFromEEPROM(ssidAddress, ssid, sizeof(ssid));
         readStringFromEEPROM(passwordAddress, pass, sizeof(pass));
@@ -146,7 +145,7 @@ void setup() {
     delay(500);
 }
 
-// Loop-functie
+// Loop function
 void loop() {
     unsigned long currentMillis = millis();
     if (bluetoothActive) {
@@ -159,25 +158,25 @@ void loop() {
                     char command[len + 1];
                     memcpy(command, commandCharacteristic.value(), len);
                     command[len] = '\0';
-                    Serial.println(command); // Debuggen
+                    Serial.println(command); // Debugging
 
-                    // Verwerk Bluetooth-commando's
+                    // Process Bluetooth commands
                     if(strcmp(command, "aan") == 0) {
                         colorWipe(strip.Color(255, 255, 255));
                     } else if(strcmp(command, "uit") == 0) {
                         colorWipe(strip.Color(0, 0, 0));
                     } else if(strcmp(command, "scan") == 0) {
-                        bluetoothActive = false; // Bluetooth tijdelijk deactiveren
+                        bluetoothActive = false; // Temporarily deactivate Bluetooth
                         scanNetworks();
-                        bluetoothActive = true; // Bluetooth na WiFi-operaties heractiveren
+                        bluetoothActive = true; // Reactivate Bluetooth after WiFi operations
                     } else if(strcmp(command, "list") == 0) {
-                        bluetoothActive = false; // Bluetooth tijdelijk deactiveren
+                        bluetoothActive = false; // Temporarily deactivate Bluetooth
                         handleNetworkSelection();
-                        bluetoothActive = true; // Bluetooth na WiFi-operaties heractiveren
+                        bluetoothActive = true; // Reactivate Bluetooth after WiFi operations
                     } else if(strcmp(command, "status") == 0) {
-                        bluetoothActive = false; // Bluetooth tijdelijk deactiveren
+                        bluetoothActive = false; // Temporarily deactivate Bluetooth
                         printWiFiStatus();
-                        bluetoothActive = true; // Bluetooth na WiFi-operaties heractiveren
+                        bluetoothActive = true; // Reactivate Bluetooth after WiFi operations
                     } else if(strncmp(command, "connect", 7) == 0) {
                         int networkIndex = atoi(&command[8]) - 1;
                         if(networkIndex >= 0 && networkIndex < numNetworks) {
@@ -186,15 +185,15 @@ void loop() {
                             displayMessage("Selected:", ssid);
                             writeStringToEEPROM(ssidAddress, ssid);
                         } else {
-                            displayMessage("Wifi:", "Ongeldig netwerk");
+                            displayMessage("Wifi:", "Invalid network");
                         }
                     } else if(strncmp(command, "password", 8) == 0) {
                         strncpy(pass, &command[9], sizeof(pass) - 1);
                         pass[sizeof(pass) - 1] = '\0';
-                        bluetoothActive = false; // Bluetooth tijdelijk deactiveren
+                        bluetoothActive = false; // Temporarily deactivate Bluetooth
                         connectToNetwork();
                         writeStringToEEPROM(passwordAddress, pass);
-                        bluetoothActive = true; // Bluetooth na WiFi-operaties heractiveren
+                        bluetoothActive = true; // Reactivate Bluetooth after WiFi operations
                     } else if(strncmp(command, "api", 8) == 0) {
                         String jsonData = gatherSensorDataAsJson();
                         sendSensorDataToApi(jsonData);
@@ -207,10 +206,10 @@ void loop() {
             delay(1000);
         }
     } else {
-        unsigned long wifiTimeout = millis() + 30000; // Timeout voor WiFi-operaties
+        unsigned long wifiTimeout = millis() + 30000; // Timeout for WiFi operations
         scanNetworks();
         while (millis() < wifiTimeout) {
-            // Wacht tot WiFi-operaties voltooid zijn
+            // Wait for WiFi operations to complete
         }
     }
     
@@ -233,7 +232,7 @@ void loop() {
     if (WiFi.status() == WL_CONNECTED) {
         // Send sensor data at intervals
         if (currentMillis - lastApiCallTime >= apiCallInterval) {
-            lastApiCallTime = currentMillis;  // Update the last api call time
+            lastApiCallTime = currentMillis;  // Update the last API call time
             String jsonData = gatherSensorDataAsJson();
             sendSensorDataToApi(jsonData);
         }
@@ -255,19 +254,19 @@ void loop() {
     }
     updateCurrentScreen();
 
-  if (WiFi.status() == WL_CONNECTED) {
-    // Controleer of het tijd is om sensorgegevens naar de API te sturen
-    if (currentMillis - lastSentTime >= sendInterval) {
-        lastSentTime = currentMillis;
-        String jsonData = gatherSensorDataAsJson();
-        sendSensorDataToApi(jsonData);
+    if (WiFi.status() == WL_CONNECTED) {
+        // Check if it's time to send sensor data to the API
+        if (currentMillis - lastSentTime >= sendInterval) {
+            lastSentTime = currentMillis;
+            String jsonData = gatherSensorDataAsJson();
+            sendSensorDataToApi(jsonData);
+        }
     }
-  }
 }
 
 void checkBluetoothConnection() {
     if (!BLE.begin()) {
-        displayMessage("FishSee", "Bluetooth stuk");
+        displayMessage("FishSee", "Bluetooth failed");
         while (1);
     }
 
@@ -276,31 +275,31 @@ void checkBluetoothConnection() {
     commandService.addCharacteristic(commandCharacteristic);
     BLE.addService(commandService);
     BLE.advertise();
-    displayMessage("Fishee!", "Buetooth actief");
+    displayMessage("FishSee", "Bluetooth active");
     delay(1500);
 }
 
-// EEPROM-controle
+// EEPROM check
 bool isEEPROMEmpty() {
   for (int i = 0; i < EEPROM.length(); i++) {
     if (EEPROM.read(i) != 255) {
-      return false; // EEPROM is niet leeg
+      return false; // EEPROM is not empty
     }
   }
-  return true; // EEPROM is leeg
+  return true; // EEPROM is empty
 }
 
-// Schrijf string naar EEPROM
+// Write string to EEPROM
 void writeStringToEEPROM(int address, String data) {
   char charBuf[data.length() + 1];
   data.toCharArray(charBuf, sizeof(charBuf));
   for (int i = 0; i < data.length(); i++) {
     EEPROM.write(address + i, charBuf[i]);
   }
-  EEPROM.write(address + data.length(), '\0'); // Null-terminatie van de string
+  EEPROM.write(address + data.length(), '\0'); // Null-terminate the string
 }
 
-// Lees string uit EEPROM
+// Read string from EEPROM
 void readStringFromEEPROM(int address, char* buffer, int bufferSize) {
   int i = 0;
   char ch = EEPROM.read(address + i);
@@ -308,10 +307,10 @@ void readStringFromEEPROM(int address, char* buffer, int bufferSize) {
     buffer[i] = ch;
     ch = EEPROM.read(address + ++i);
   }
-  buffer[i] = '\0'; // Null-terminatie van de string
+  buffer[i] = '\0'; // Null-terminate the string
 }
 
-// Verzamel sensorgegevens en formatteer deze naar een JSON-string
+// Gather sensor data and format it as a JSON string
 String gatherSensorDataAsJson() {
     DynamicJsonDocument doc(512);
     doc["tempC"] = tempC;
@@ -327,10 +326,10 @@ String gatherSensorDataAsJson() {
     return jsonData;
 }
 
-// Stuur sensorgegevens naar API
-void sendSensorDataToApi(arduino::String sensorData) {
-    WiFiClient wifiClient;
-    HttpClient client = HttpClient(wifiClient, "fishsee.aeternaserver.net", 80);    
+// Send sensor data to API
+void sendSensorDataToApi(String sensorData) {
+    WiFiSSLClient wifiSSLClient;
+    HttpClient client = HttpClient(wifiSSLClient, "fishsee.aeternaserver.net", 443);    
 
     String contentType = "application/json";
 
@@ -351,27 +350,27 @@ void sendSensorDataToApi(arduino::String sensorData) {
     }
     displayMessage("Connecting", "to server...");
     delay(1500);
-    displayMessage("JSON:", "Gestuurd");
+    displayMessage("JSON:", "Sent");
     Serial.println("Response:");
     Serial.println(response);
 
     if (statusCode == -3) {
-        displayMessage("Server:", "Niet beschikbaar");
+        displayMessage("Server:", "Unavailable");
         delay(1000);
-        displayMessage("Server:", "Verbinding checken");
+        displayMessage("Server:", "Check connection");
         delay(1000);
         if (WiFi.status() == WL_CONNECTED) {
           displayMessage("Wifi:", String(WiFi.SSID()));
           delay(1000);
-          displayMessage("Wifi sterkte:", String(WiFi.SSID()));
+          displayMessage("Wifi strength:", String(WiFi.RSSI()));
         } else {
-          displayMessage("Wifi:", String(WiFi.RSSI()));
+          displayMessage("Wifi:", "Not connected");
         }
         delay(1000);
     }
 }
 
-// Toon berichten op het LCD
+// Display messages on the LCD
 void displayMessage(String line1, String line2) {
     lcd.clear();
     lcd.setCursor(0, 0);
@@ -380,9 +379,9 @@ void displayMessage(String line1, String line2) {
     lcd.print(line2);
 }
 
-// Scan naar beschikbare netwerken
+// Scan for available networks
 void scanNetworks() {
-    displayMessage("Wifi:", "Scanning....");
+    displayMessage("Wifi:", "Scanning...");
     if (WiFi.status() == WL_NO_SHIELD) {
         displayMessage("Wifi:", "No module");
         while (true);
@@ -398,10 +397,10 @@ void scanNetworks() {
             networkEncTypes[i] = WiFi.encryptionType(i);
         }
     }   
-    displayMessage("Wifi:", "Gevonden");
+    displayMessage("Wifi:", "Found");
 }
 
-// Hanteer netwerkselectie
+// Handle network selection
 void handleNetworkSelection() {
     displayMessage("Select Network", "");
     for (int i = 0; i < numNetworks && i < MAX_NETWORKS; ++i) {
@@ -426,7 +425,7 @@ void handleNetworkSelection() {
 
             displayMessage("Enter Password:", "");
             while (!commandCharacteristic.written()) {
-                // Wacht op wachtwoordinvoer
+                // Wait for password input
             }
             if (commandCharacteristic.written()) {
                 strncpy(pass, (char*)commandCharacteristic.value(), sizeof(pass) - 1);
@@ -437,7 +436,7 @@ void handleNetworkSelection() {
     }
 }
 
-// Verbind met een netwerk
+// Connect to a network
 void connectToNetwork() {
     displayMessage("Connecting to:", ssid);
     Serial.print("Connecting..");
@@ -457,7 +456,7 @@ void connectToNetwork() {
     }
 }
 
-// Print WiFi-status
+// Print WiFi status
 void printWiFiStatus() {
     Serial.print("SSID: ");
     Serial.println(WiFi.SSID());
@@ -471,12 +470,12 @@ void printWiFiStatus() {
     Serial.println(rssi);
 }
 
-// Behandel stroomvloei
+// Flow sensor interrupt handler
 void flow() {
     flow_frequency++;
 }
 
-// Controleer troebelheid
+// Check turbidity
 void checkTurbidity() {
     const int minAnalogValue = 0;
     const int maxAnalogValue = 640;
@@ -487,7 +486,7 @@ void checkTurbidity() {
     turbidity_status = turbidity;
 }
 
-// Wijzig de kleur van LED-strips
+// Change the color of LED strips
 void colorWipe(uint32_t color) {
     for (int i = 0; i < NUM_LEDS; i++) {
         strip.setPixelColor(i, color);
@@ -495,7 +494,7 @@ void colorWipe(uint32_t color) {
     strip.show();
 }
 
-// Lees pH-waarde
+// Read pH value
 void readPH(){
   for(int i=0;i<10;i++) { 
     buf[i]=analogRead(PH_SENSOR_PIN);
@@ -518,7 +517,7 @@ void readPH(){
   phValueCurrent= phValue;      
 }
 
-// Lees waarden van hoge sectie
+// Read values from the high section
 void getHigh12SectionValue() {
     Wire.beginTransmission(ATTINY1_HIGH_ADDR);
     Wire.write(NO_TOUCH);
@@ -532,7 +531,7 @@ void getHigh12SectionValue() {
     }
 }
 
-// Lees waarden van lage sectie
+// Read values from the low section
 void getLow8SectionValue() {
     Wire.beginTransmission(ATTINY2_LOW_ADDR);
     Wire.write(NO_TOUCH);
@@ -546,7 +545,7 @@ void getLow8SectionValue() {
     }
 }
 
-// Bepaal het waterniveau
+// Determine the water level
 int getWaterLevel() {
     getLow8SectionValue();
     getHigh12SectionValue();
@@ -571,46 +570,46 @@ int getWaterLevel() {
     return trig_section * 5;  
 }
 
-// Bedien de servo
+// Control the servo
 void servo(int pulse) {
-      for (int i = 0; i < 8; i++) {
+    for (int i = 0; i < 8; i++) {
         digitalWrite(SERVO_PIN, HIGH);
         delayMicroseconds(pulse);
         digitalWrite(SERVO_PIN, LOW);
-      }
+    }
 }
 
-// Update het huidige scherm
+// Update the current screen
 void updateCurrentScreen() {
-  lcd.clear();
+    lcd.clear();
 
-  switch (currentScreen) {
-    case 0:
-        displayMessage("Water Level:",String(water_level) + " %");
-        break;
-    case 1:
-        displayMessage("Distance:",String(distance_cm) + " cm");
-        break;
-    case 2:
-        displayMessage("Light Level:",String(light_level));
-        break;
-    case 3:
-        displayMessage("Temperature:",String(tempC) + " C");
-        break;
-    case 4:
-        displayMessage("Turbidity:",String(turbidity) + " %");
-        break;
-    case 5:
-        displayMessage("PH:",String(phValueCurrent));
-        break;
-    case 6:
-        displayMessage("Flow sensor:",String(flow_frequency) + " hz");
-        break;
-    case 7: 
-        if (WiFi.status() == WL_CONNECTED) {
-          displayMessage("Wifi:", String(WiFi.SSID()));
-        } else {
-          displayMessage("Wifi:", "Niet verbonden");
-        }
-  }
+    switch (currentScreen) {
+        case 0:
+            displayMessage("Water Level:", String(water_level) + " %");
+            break;
+        case 1:
+            displayMessage("Distance:", String(distance_cm) + " cm");
+            break;
+        case 2:
+            displayMessage("Light Level:", String(light_level));
+            break;
+        case 3:
+            displayMessage("Temperature:", String(tempC) + " C");
+            break;
+        case 4:
+            displayMessage("Turbidity:", String(turbidity) + " %");
+            break;
+        case 5:
+            displayMessage("PH:", String(phValueCurrent));
+            break;
+        case 6:
+            displayMessage("Flow sensor:", String(flow_frequency) + " hz");
+            break;
+        case 7: 
+            if (WiFi.status() == WL_CONNECTED) {
+                displayMessage("Wifi:", String(WiFi.SSID()));
+            } else {
+                displayMessage("Wifi:", "Not connected");
+            }
+    }
 }
