@@ -36,6 +36,7 @@ char pass[64];
 #define ATTINY2_LOW_ADDR   0x77
 #define NO_TOUCH       0xFE
 #define SERVO_PIN 7
+#define MOTOR_PIN 0
 
 // Variables
 int turbidity_status = 0;
@@ -131,6 +132,8 @@ void setup() {
     attachInterrupt(digitalPinToInterrupt(FLOW_PIN), flow, RISING); 
     pinMode(SERVO_PIN, OUTPUT);
     digitalWrite(SERVO_PIN, LOW);
+    pinMode(MOTOR_PIN, OUTPUT);
+    digitalWrite(MOTOR_PIN, HIGH);
     
     if (isEEPROMEmpty()) {
         displayMessage("Wifi:", "Not Set");
@@ -162,9 +165,9 @@ void loop() {
 
                     // Process Bluetooth commands
                     if(strcmp(command, "aan") == 0) {
-                        colorWipe(strip.Color(255, 255, 255));
+                        digitalWrite(MOTOR_PIN, LOW);
                     } else if(strcmp(command, "uit") == 0) {
-                        colorWipe(strip.Color(0, 0, 0));
+                        digitalWrite(MOTOR_PIN, HIGH);
                     } else if(strcmp(command, "scan") == 0) {
                         bluetoothActive = false; // Temporarily deactivate Bluetooth
                         scanNetworks();
