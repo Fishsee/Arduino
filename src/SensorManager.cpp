@@ -37,9 +37,6 @@ int turbidity = 0;
 float tempC = 0.0;
 float phValueCurrent = 0.0;
 
-// Remaining part of the code...
-
-
 void setupSensors() {
     sensors.begin();
     strip.begin();
@@ -57,6 +54,24 @@ void updateSensors() {
     tempC = sensors.getTempCByIndex(0);
     checkTurbidity();
     readPH();
+    getLightLevel();
+    Serial.println("Distance:");
+    Serial.println(distance_cm);
+
+    Serial.println("Light:");
+    Serial.println(light_level);
+
+    Serial.println("Water:");
+    Serial.println(water_level);
+
+    Serial.println("Temperatuur:");
+    Serial.println(tempC);
+
+    Serial.println("Troebelheid:");
+    Serial.println(turbidity);
+
+    Serial.println("PH:");
+    Serial.println(phValueCurrent);
 }
 
 float getTemp() {
@@ -75,6 +90,16 @@ void checkTurbidity() {
 
 void flow() {
     flow_frequency++;
+}
+
+void getLightLevel() {
+    if (light_level <= 200) {
+        colorWipe(strip.Color(255, 255, 255)); 
+    }
+    else {
+        colorWipe(strip.Color(0, 0, 0)); 
+    }
+    
 }
 
 void readPH() {

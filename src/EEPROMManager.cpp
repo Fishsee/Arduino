@@ -2,16 +2,16 @@
 #include <EEPROM.h>
 
 void setupEEPROM() {
-    EEPROM.begin(); // Adjusted for correct usage without specifying size
+    EEPROM.begin(); 
 }
 
 bool isEEPROMEmpty() {
     for (int i = 0; i < EEPROM.length(); i++) {
         if (EEPROM.read(i) != 255) {
-            return false; // EEPROM is not empty
+            return false; 
         }
     }
-    return true; // EEPROM is empty
+    return true; 
 }
 
 void writeStringToEEPROM(int address, String data) {
@@ -20,9 +20,9 @@ void writeStringToEEPROM(int address, String data) {
     for (int i = 0; i < data.length(); i++) {
         EEPROM.write(address + i, charBuf[i]);
     }
-    EEPROM.write(address + data.length(), '\0'); // Null-terminate the string
+    EEPROM.write(address + data.length(), '\0'); 
 #if defined(ESP8266) || defined(ESP32)
-    EEPROM.commit(); // Ensure data is written to EEPROM
+    EEPROM.commit(); 
 #endif
 }
 
@@ -33,5 +33,5 @@ void readStringFromEEPROM(int address, char* buffer, int bufferSize) {
         buffer[i] = ch;
         ch = EEPROM.read(address + ++i);
     }
-    buffer[i] = '\0'; // Null-terminate the string
+    buffer[i] = '\0'; 
 }

@@ -1,5 +1,4 @@
 #include "WiFiManager.h"
-#include "DisplayManager.h"
 #include "EEPROMManager.h"
 #include "SensorManager.h"
 #include <ArduinoHttpClient.h>
@@ -17,7 +16,7 @@ const unsigned long apiCallInterval = 30000; // Interval to send sensor data (e.
 
 void setupWiFi() {
     if (isEEPROMEmpty()) {
-        displayMessage("Wifi:", "Not Set");
+        Serial.println("Wifi: Not Set");
     } else {
         readStringFromEEPROM(ssidAddress, ssid, sizeof(ssid));
         readStringFromEEPROM(passwordAddress, pass, sizeof(pass));
@@ -26,8 +25,8 @@ void setupWiFi() {
 }
 
 void connectToNetwork() {
-    displayMessage("Connecting to:", ssid);
-    Serial.print("Connecting..");
+    Serial.print("Connecting to: ");
+    Serial.println(ssid);
     WiFi.begin(ssid, pass);
 
     unsigned long startTime = millis();
@@ -37,23 +36,24 @@ void connectToNetwork() {
     }
 
     if (WiFi.status() == WL_CONNECTED) {
-        displayMessage("Connected to:", ssid);
+        Serial.print("Connected to: ");
+        Serial.println(ssid);
         printWiFiStatus();
     } else {
-        displayMessage("Failed to", "connect");
+        Serial.println("Failed to connect");
     }
 }
 
 void scanNetworks() {
-    displayMessage("Wifi:", "Scanning...");
+    Serial.println("Wifi: Scanning...");
     if (WiFi.status() == WL_NO_SHIELD) {
-        displayMessage("Wifi:", "No module");
+        Serial.println("Wifi: No module");
         while (true);
     }
 
     numNetworks = WiFi.scanNetworks();
     if (numNetworks == 0) {
-        displayMessage("Wifi:", "No Networks");
+        Serial.println("Wifi: No Networks");
     } else {
         for (int i = 0; i < numNetworks && i < 20; ++i) {
             strncpy(networkSSIDs[i], WiFi.SSID(i), sizeof(networkSSIDs[i]) - 1);
@@ -61,11 +61,11 @@ void scanNetworks() {
             networkEncTypes[i] = WiFi.encryptionType(i);
         }
     }
-    displayMessage("Wifi:", "Found");
+    Serial.println("Wifi: Found");
 }
 
 void handleNetworkSelection() {
-    displayMessage("Select Network", "");
+    Serial.println("Select Network:");
     for (int i = 0; i < numNetworks && i < 20; ++i) {
         Serial.print(i + 1);
         Serial.print(": ");
@@ -74,7 +74,6 @@ void handleNetworkSelection() {
         Serial.print(WiFi.RSSI(i));
         Serial.println(")");
     }
-    // Add your code here to handle the network selection using Bluetooth characteristic
 }
 
 void printWiFiStatus() {
@@ -104,7 +103,6 @@ void handleWiFi() {
 void sendSensorDataToApi(String sensorData) {
     WiFiSSLClient wifiSSLClient;
     HttpClient client = HttpClient(wifiSSLClient, "fishsee.aeternaserver.net", 443);
-
     String contentType = "application/json";
 
     client.beginRequest();
@@ -122,24 +120,21 @@ void sendSensorDataToApi(String sensorData) {
     } else {
         response = "Error receiving response";
     }
-    displayMessage("Connecting", "to server...");
-    delay(1500);
-    displayMessage("JSON:", "Sent");
+    Serial.println("Connecting to server...");
+    Serial.println("JSON: Sent");
     Serial.println("Response:");
     Serial.println(response);
 
     if (statusCode == -3) {
-        displayMessage("Server:", "Unavailable");
-        delay(1000);
-        displayMessage("Server:", "Check connection");
-        delay(1000);
+        Serial.println("Server: Unavailable");
+        Serial.println("Server: Check connection");
         if (WiFi.status() == WL_CONNECTED) {
-            displayMessage("Wifi:", String(WiFi.SSID()));
-            delay(1000);
-            displayMessage("Wifi strength:", String(WiFi.RSSI()));
+            Serial.print("Wifi: ");
+            Serial.println(String(WiFi.SSID()));
+            Serial.println("Wifi strength: ");
+            Serial.println(String(WiFi.RSSI()));
         } else {
-            displayMessage("Wifi:", "Not connected");
+            Serial.println("Wifi: Not connected");
         }
-        delay(1000);
     }
 }

@@ -1,5 +1,4 @@
 #include "BluetoothManager.h"
-#include "DisplayManager.h"
 #include "WiFiManager.h"
 #include "SensorManager.h"
 #include "EEPROMManager.h"
@@ -15,7 +14,7 @@ BLECharacteristic commandCharacteristic(CHARACTERISTIC_UUID, BLERead | BLEWrite,
 
 void setupBluetooth() {
     if (!BLE.begin()) {
-        displayMessage("FishSee", "Bluetooth failed");
+        Serial.println("FishSee: Bluetooth failed");
         while (1);
     }
 
@@ -25,21 +24,21 @@ void setupBluetooth() {
     BLE.addService(commandService);
     BLE.advertise();
     pinMode(MOTOR_PIN, OUTPUT);
-    displayMessage("FishSee", "Bluetooth active");
-    delay(1500);
+    Serial.println("FishSee Bluetooth active");
 }
 
 void handleBluetooth() {
     BLEDevice central = BLE.central();
     if (central) {
-        displayMessage("Bluetooth connected", central.address());
+        Serial.print("Bluetooth connected");
+        Serial.println(central.address());
         while (central.connected()) {
             if (commandCharacteristic.written()) {
                 int len = commandCharacteristic.valueLength();
                 char command[len + 1];
                 memcpy(command, commandCharacteristic.value(), len);
                 command[len] = '\0';
-                Serial.println(command); // Debugging
+                Serial.println(command);
 
                 if (strcmp(command, "aan") == 0) {
                     digitalWrite(MOTOR_PIN, LOW);
@@ -56,10 +55,11 @@ void handleBluetooth() {
                     if (networkIndex >= 0 && networkIndex < numNetworks) {
                         strncpy(ssid, networkSSIDs[networkIndex], sizeof(ssid) - 1);
                         ssid[sizeof(ssid) - 1] = '\0';
-                        displayMessage("Selected:", ssid);
+                        Serial.print("Selected:");
+                        Serial.println(ssid);
                         writeStringToEEPROM(ssidAddress, ssid);
                     } else {
-                        displayMessage("Wifi:", "Invalid network");
+                        Serial.println("Wifi: Invalid network");
                     }
                 } else if (strncmp(command, "password", 8) == 0) {
                     strncpy(pass, &command[9], sizeof(pass) - 1);
@@ -74,7 +74,6 @@ void handleBluetooth() {
                 }
             }
         }
-        displayMessage("Bluetooth:", "No connection");
-        delay(1000);
+        Serial.println("Bluetooth: No connection");
     }
 }

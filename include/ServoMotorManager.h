@@ -2,6 +2,6 @@
 #define SERVOMOTORMANAGER_H
 
 void setupServoMotor();
-void servo(int pulse);
+void moveServos(int position);
 
 #endif

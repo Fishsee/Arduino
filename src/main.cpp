@@ -1,6 +1,6 @@
 #include <Arduino.h>
+#include <Adafruit_NeoPixel.h>
 #include "BluetoothManager.h"
-#include "DisplayManager.h"
 #include "EEPROMManager.h"
 #include "SensorManager.h"
 #include "ServoMotorManager.h"
@@ -11,20 +11,20 @@ void setup() {
     Serial.begin(115200);
     while (!Serial);
 
-    setupLEDs(); // Changed to setupLEDs() function declaration in SensorManager.h
-    setupLCD();
+    setupLEDs();
     setupBluetooth();
     setupSensors();
     setupEEPROM();
     setupWiFi();
     setupServoMotor();
-
-    delay(500);
 }
 
 void loop() {
+    moveServos(90);
+    delay(1000);
+    moveServos(0);
+    delay(1000);
+
     handleBluetooth();
-    handleWiFi();
     updateSensors();
-    updateDisplay();
 }
