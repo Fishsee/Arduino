@@ -1,5 +1,5 @@
 #include "SensorManager.h"
-#include <Wire.h>  // Add this line
+#include <Wire.h> 
 #include <OneWire.h>
 #include <DallasTemperature.h>
 #include <Ultrasonic.h>
@@ -40,10 +40,12 @@ float phValueCurrent = 0.0;
 void setupSensors() {
     sensors.begin();
     strip.begin();
+    Wire.begin();
     pinMode(TURBIDITY_PIN, INPUT);
     pinMode(FLOW_PIN, INPUT);
     digitalWrite(FLOW_PIN, HIGH); 
     attachInterrupt(digitalPinToInterrupt(FLOW_PIN), flow, RISING);
+    Serial.println("\nI2C Scanner");
 }
 
 void updateSensors() {
@@ -158,12 +160,12 @@ int getWaterLevel() {
     uint8_t trig_section = 0;
     for (int i = 0; i < 8; i++) {
         if (low_data[i] > THRESHOLD) {
-            touch_val |= 1 << i;
+        touch_val |= 1 << i;
         }
     }
     for (int i = 0; i < 12; i++) {
         if (high_data[i] > THRESHOLD) {
-            touch_val |= (uint32_t)1 << (8 + i);
+        touch_val |= (uint32_t)1 << (8 + i);
         }
     }
     while (touch_val & 0x01) {
@@ -171,7 +173,7 @@ int getWaterLevel() {
         touch_val >>= 1;
     }
 
-    return trig_section * 5;
+    return trig_section * 5;  
 }
 
 String gatherSensorDataAsJson() {

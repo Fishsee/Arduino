@@ -24,6 +24,7 @@ void setupBluetooth() {
     BLE.addService(commandService);
     BLE.advertise();
     pinMode(MOTOR_PIN, OUTPUT);
+    digitalWrite(MOTOR_PIN, LOW);
     Serial.println("FishSee Bluetooth active");
 }
 
