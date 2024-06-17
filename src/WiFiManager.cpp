@@ -104,7 +104,7 @@ void sendSensorDataToApi(String sensorData) {
     WiFiSSLClient wifiSSLClient;
     HttpClient client = HttpClient(wifiSSLClient, "fishsee.aeternaserver.net", 443);
     String contentType = "application/json";
-
+    
     client.beginRequest();
     client.post("/api/data-send", contentType, sensorData);
     client.endRequest();
@@ -135,6 +135,7 @@ void sendSensorDataToApi(String sensorData) {
             Serial.println(String(WiFi.RSSI()));
         } else {
             Serial.println("Wifi: Not connected");
+        
         }
     }
 }

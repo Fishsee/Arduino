@@ -21,6 +21,7 @@ String gatherSensorDataAsJson();
 void setupLEDs();
 void colorWipe(uint32_t color);
 void getLightLevel();
+void setBrightness(uint8_t brightness);
 
 extern int water_level;
 extern int distance_cm;

@@ -29,13 +29,14 @@ unsigned char high_data[12] = {0};
 unsigned long int avgValue;
 float b;
 int buf[10], temp;
-int flow_frequency;
+int flow_frequency = 0;
 int water_level = 0;
 int distance_cm = 0;
 int light_level = 0;
 int turbidity = 0;
 float tempC = 0.0;
 float phValueCurrent = 0.0;
+int aquarium_id = 1;
 
 void setupSensors() {
     sensors.begin();
@@ -57,23 +58,6 @@ void updateSensors() {
     checkTurbidity();
     readPH();
     getLightLevel();
-    Serial.println("Distance:");
-    Serial.println(distance_cm);
-
-    Serial.println("Light:");
-    Serial.println(light_level);
-
-    Serial.println("Water:");
-    Serial.println(water_level);
-
-    Serial.println("Temperatuur:");
-    Serial.println(tempC);
-
-    Serial.println("Troebelheid:");
-    Serial.println(turbidity);
-
-    Serial.println("PH:");
-    Serial.println(phValueCurrent);
 }
 
 float getTemp() {
@@ -109,20 +93,22 @@ void readPH() {
         buf[i] = analogRead(PH_SENSOR_PIN);
         delay(10);
     }
-    for (int i = 0; i < 9; i++) {
-        for (int j = i + 1; j < 10; j++) {
-            if (buf[i] > buf[j]) {
-                temp = buf[i];
-                buf[i] = buf[j];
-                buf[j] = temp;
+
+    for (int i = 0; i < 9; i++) {  
+        for (int j = 0; j < 9 - i; j++) {  
+            if (buf[j] > buf[j + 1]) {  
+                int temp = buf[j];
+                buf[j] = buf[j + 1];
+                buf[j + 1] = temp;
             }
         }
     }
-    avgValue = 0;
-    for (int i = 2; i < 8; i++)
+
+    unsigned long int avgValue = 0;
+    for (int i = 2; i < 8; i++) {
         avgValue += buf[i];
-    float phValue = (float)avgValue * 5.0 / 1024 / 6;
-    phValue = 3.5 * phValue + 0.54;
+    }
+    float phValue = 3.5 * (avgValue * 5.0 / 1024 / 6) + 0.54;
     phValueCurrent = phValue;
 }
 
@@ -176,8 +162,14 @@ int getWaterLevel() {
     return trig_section * 5;  
 }
 
+void setBrightness(uint8_t brightness) {
+    strip.setBrightness(brightness);  
+    strip.show();  
+}
+
 String gatherSensorDataAsJson() {
     DynamicJsonDocument doc(512);
+    doc["aquarium_id"] = aquarium_id;
     doc["tempC"] = tempC;
     doc["distance_cm"] = distance_cm;
     doc["light_level"] = light_level;
@@ -193,7 +185,7 @@ String gatherSensorDataAsJson() {
 
 void setupLEDs() {
     strip.begin();
-    strip.show(); // Initialize all pixels to 'off'
+    strip.show(); 
 }
 
 void colorWipe(uint32_t color) {
@@ -202,4 +194,3 @@ void colorWipe(uint32_t color) {
     }
     strip.show();
 }
-

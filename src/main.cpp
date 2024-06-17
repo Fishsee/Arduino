@@ -24,7 +24,7 @@ void loop() {
     delay(1000);
     moveServos(0);
     delay(1000);
-
     handleBluetooth();
     updateSensors();
+    handleWiFi();
 }

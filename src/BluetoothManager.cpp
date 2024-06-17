@@ -41,10 +41,10 @@ void handleBluetooth() {
                 command[len] = '\0';
                 Serial.println(command);
 
-                if (strcmp(command, "aan") == 0) {
-                    digitalWrite(MOTOR_PIN, LOW);
-                } else if (strcmp(command, "uit") == 0) {
-                    digitalWrite(MOTOR_PIN, HIGH);
+                if (strcmp(command, "20") == 0) {
+                    setBrightness(20);
+                } else if (strcmp(command, "100") == 0) {
+                    setBrightness(100);
                 } else if (strcmp(command, "scan") == 0) {
                     scanNetworks();
                 } else if (strcmp(command, "list") == 0) {
