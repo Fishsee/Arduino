@@ -18,5 +18,8 @@ void handleNetworkSelection();
 void printWiFiStatus();
 void handleWiFi();
 void sendSensorDataToApi(String sensorData); // Ensure this is declared
+void handleBrightnessControl();
+int getBrightnessFromApi();
+
 
 #endif

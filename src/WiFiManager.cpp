@@ -13,6 +13,8 @@ int passwordAddress = 32;
 
 unsigned long lastApiCallTime = 0;
 const unsigned long apiCallInterval = 30000; // Interval to send sensor data (e.g., every 60 seconds)
+const unsigned long brightnessApiCallInterval = 30000; // Interval to fetch brightness (e.g., every 60 seconds)
+unsigned long lastBrightnessApiCallTime = 0;
 
 void setupWiFi() {
     if (isEEPROMEmpty()) {
@@ -96,9 +98,53 @@ void handleWiFi() {
             lastApiCallTime = currentMillis;  // Update the last API call time
             String jsonData = gatherSensorDataAsJson();
             sendSensorDataToApi(jsonData);
+            handleBrightnessControl();
         }
     }
+    else {
+        Serial.println("WiFi Disconnected. Attempting reconnection...");
+        setupWiFi();  // Attempt to reconnect
+    }
 }
+
+
+void handleBrightnessControl() {
+    if (WiFi.status() == WL_CONNECTED) {
+        unsigned long currentMillis = millis();
+        if (currentMillis - lastBrightnessApiCallTime >= brightnessApiCallInterval) {
+            lastBrightnessApiCallTime = currentMillis;
+            int brightness = getBrightnessFromApi();
+            setBrightness(brightness);
+            Serial.println("brightness:");
+            Serial.print(brightness);
+        }
+    }
+    else{
+        Serial.println("not connected");
+    }
+}
+
+int getBrightnessFromApi() {
+    WiFiSSLClient wifiSSLClient;
+    HttpClient client = HttpClient(wifiSSLClient, "fishsee.aeternaserver.net", 443);
+    String token = "99|ab6lI1aunVoptNtDob8he1KuQmw6II6TFscpu34y6b1b952e";
+
+    client.beginRequest();
+    client.get("/api/brightness");
+    client.sendHeader("Authorization", "Bearer " + token);
+    client.endRequest();
+
+    int statusCode = client.responseStatusCode();
+    if (statusCode == 200) {
+        String response = client.responseBody();
+        Serial.println("Brightness from API: " + response);
+        return response.toInt();
+    } else {
+        Serial.println("Failed to fetch brightness, Status code: " + String(statusCode));
+        return 0;
+    }
+}
+
 
 void sendSensorDataToApi(String sensorData) {
     WiFiSSLClient wifiSSLClient;

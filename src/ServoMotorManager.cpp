@@ -10,8 +10,8 @@ Servo servo1;
 Servo servo2;
 
 void setupServoMotor() {
-    servo1.attach(SERVO_PIN);
-    servo2.attach(SERVO_PIN_2);
+    // servo1.attach(SERVO_PIN);
+    // servo2.attach(SERVO_PIN_2);
 }
 
 void moveServos(int position) {
