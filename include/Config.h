@@ -2,7 +2,7 @@
 #ifndef CONFIG_H
 #define CONFIG_H
 
-#define MOTOR_PIN 0
+#define MOTOR_PIN 8
 #define SERVO_PIN 7
 #define SERVO_PIN_2 5
 #define TEMPERATURE_PIN 2

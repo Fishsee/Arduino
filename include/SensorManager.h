@@ -23,8 +23,10 @@ void setupLEDs();
 void colorWipe(uint32_t color);
 void getLightLevel();
 void setupServoMotor();
-void moveServos(int position);
+void moveServo1(int position);
+void moveServo2(int position);
 void setBrightness(uint8_t brightness);
+void commandRecieve();
 
 extern int water_level;
 extern int distance_cm;

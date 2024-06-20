@@ -1,4 +1,5 @@
 #include "SensorManager.h"
+#include "Config.h"
 #include <Wire.h> 
 #include <OneWire.h>
 #include <DallasTemperature.h>
@@ -10,7 +11,7 @@
 #define FLOW_PIN 3
 #define PH_SENSOR_PIN A1
 #define TURBIDITY_PIN A2
-#define ULTRASONIC_PIN 8
+#define ULTRASONIC_PIN 6
 #define LED_PIN 4
 #define NUM_LEDS 60
 #define ATTINY1_HIGH_ADDR 0x78
@@ -49,6 +50,8 @@ void setupSensors() {
     pinMode(TURBIDITY_PIN, INPUT);
     pinMode(FLOW_PIN, INPUT);
     digitalWrite(FLOW_PIN, HIGH); 
+    pinMode(MOTOR_PIN, OUTPUT);
+    digitalWrite(MOTOR_PIN, LOW);
     attachInterrupt(digitalPinToInterrupt(FLOW_PIN), flow, RISING);
     servo1.attach(SERVO_PIN);
     servo2.attach(SERVO_PIN_2);
@@ -62,14 +65,52 @@ void updateSensors() {
     tempC = sensors.getTempCByIndex(0);
     checkTurbidity();
     readPH();
-    getLightLevel();
-    moveServos(90);
-    delay(1000);
-    moveServos(0);
+    gatherSensorDataAsJson();
+    commandRecieve();
 }
 
-void moveServos(int position) {
+void commandRecieve() {
+    if (Serial.available() > 0) {
+        String command = Serial.readStringUntil('\n'); 
+        command.trim();   
+        if (command == "uit") {  
+            digitalWrite(MOTOR_PIN, HIGH);
+        } else if (command == "aan") {  
+            digitalWrite(MOTOR_PIN, LOW);
+        }
+        else if (command == "0") {  
+            setBrightness(0);
+        }
+        else if (command == "25") {  
+            setBrightness(25);
+        }
+        else if (command == "50") {  
+            setBrightness(50);
+        }
+        else if (command == "75") {  
+            setBrightness(75);
+        }
+        else if (command == "100") {  
+            setBrightness(100);
+        }
+        else if (command == "servo1") {  
+            moveServo1(0);
+            delay(1000);
+            moveServo1(100);
+        }
+        else if (command == "servo2") {  
+            moveServo2(0);
+            delay(1000);
+            moveServo2(100);
+        }
+    }
+}
+
+void moveServo1(int position) {
     servo1.write(position);
+}
+
+void moveServo2(int position) {
     servo2.write(position);
 }
 
@@ -90,16 +131,6 @@ void checkTurbidity() {
 
 void flow() {
     flow_frequency++;
-}
-
-void getLightLevel() {
-    if (light_level <= 200) {
-        colorWipe(strip.Color(255, 255, 255)); 
-    }
-    else {
-        colorWipe(strip.Color(0, 0, 0)); 
-    }
-    
 }
 
 void readPH() {
@@ -177,6 +208,7 @@ int getWaterLevel() {
 }
 
 void setBrightness(uint8_t brightness) {
+    colorWipe(strip.Color(255, 255, 255)); 
     strip.setBrightness(brightness);  
     strip.show();  
 }
