@@ -15,6 +15,8 @@
 #define NUM_LEDS 60
 #define ATTINY1_HIGH_ADDR 0x78
 #define ATTINY2_LOW_ADDR 0x77
+#define SERVO_PIN 7
+#define SERVO_PIN_2 5
 #define NO_TOUCH 0xFE
 
 OneWire oneWire(TEMPERATURE_PIN);
@@ -37,6 +39,8 @@ int turbidity = 0;
 float tempC = 0.0;
 float phValueCurrent = 0.0;
 int aquarium_id = 1;
+Servo servo1;
+Servo servo2;
 
 void setupSensors() {
     sensors.begin();
@@ -46,7 +50,8 @@ void setupSensors() {
     pinMode(FLOW_PIN, INPUT);
     digitalWrite(FLOW_PIN, HIGH); 
     attachInterrupt(digitalPinToInterrupt(FLOW_PIN), flow, RISING);
-    Serial.println("\nI2C Scanner");
+    servo1.attach(SERVO_PIN);
+    servo2.attach(SERVO_PIN_2);
 }
 
 void updateSensors() {
@@ -58,7 +63,16 @@ void updateSensors() {
     checkTurbidity();
     readPH();
     getLightLevel();
+    moveServos(90);
+    delay(1000);
+    moveServos(0);
 }
+
+void moveServos(int position) {
+    servo1.write(position);
+    servo2.write(position);
+}
+
 
 float getTemp() {
     sensors.requestTemperatures();

@@ -7,6 +7,7 @@
 #include <Ultrasonic.h>
 #include <Adafruit_NeoPixel.h>
 #include <ArduinoJson.h>
+#include <Servo.h>
 
 void setupSensors();
 void updateSensors();
@@ -21,6 +22,8 @@ String gatherSensorDataAsJson();
 void setupLEDs();
 void colorWipe(uint32_t color);
 void getLightLevel();
+void setupServoMotor();
+void moveServos(int position);
 void setBrightness(uint8_t brightness);
 
 extern int water_level;
