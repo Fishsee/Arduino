@@ -10,56 +10,57 @@
 
 ###
 
-<h3 align="left">Code conventie</h3>
+# Installatie en Configuratie Handleiding
 
-###
+## Introductie
+Welkom bij de installatiegids van uw nieuwe systeem. Volg deze instructies zorgvuldig om het systeem correct te configureren en te installeren.
 
-For code convention references, consult the Makerguide C++ Style Guide for Arduino projects.
+## Vereisten
+- Visual Studio Code
+- Arduino Uno R4 WiFi
+- PlatformIO extensie geïnstalleerd in Visual Studio Code
+- Een Raspberry Pi voor seriele verbindingen (nodig voor het oplossen van een bekende fout)
 
-### Makerguide C++ Style Guide for Arduino Projects
+## Installatie
+1. **Visual Studio Code en PlatformIO:**
+   - Zorg ervoor dat Visual Studio Code is geïnstalleerd op uw computer.
+   - Installeer de PlatformIO extensie via de Visual Studio Code Marketplace.
 
-#### 1. Introduction
-This style guide provides guidelines for writing consistent, readable, and maintainable code for Arduino projects in C++. Following these conventions will help in maintaining a uniform coding style and make it easier for others to understand and contribute to your project.
+2. **Project Setup:**
+   - Start een nieuw project.
+   - Open de file locatie en trek de git binnen:
 
-#### 2. File Structure
-- **Header Files (.h)**: Use header files for declarations and include guards to prevent multiple inclusions.
-- **Source Files (.cpp)**: Use source files for definitions.
+```
+git clone https://github.com/Fishsee/Arduino.git .
+```
 
-#### 3. Naming Conventions
-- **File Names**: Use lowercase with underscores (e.g., `file_name.h`).
-- **Class Names**: Use CamelCase (e.g., `ClassName`).
-- **Function Names**: Use camelCase (e.g., `functionName`).
-- **Variable Names**: Use descriptive names in camelCase (e.g., `variableName`).
-- **Constants**: Use uppercase with underscores (e.g., `CONSTANT_NAME`).
+## Configuratie
+De configuratie van de hardwarepins is gedefinieerd in het `Config.h` bestand. Pas deze configuratie aan op basis van de specifieke hardware setup van uw systeem:
+```cpp
+#define MOTOR_PIN 8
+#define SERVO_PIN 7
+#define SERVO_PIN_2 5
+#define TEMPERATURE_PIN 2
+#define FLOW_PIN 3
+#define PH_SENSOR_PIN A1
+#define TURBIDITY_PIN A2
+#define ULTRASONIC_PIN 8
+#define LED_PIN 4
+#define NUM_LEDS 60
+```
 
-#### 4. Indentation and Formatting
-- Use 2 spaces per indentation level.
-- Keep lines within 80 characters.
-- Place opening braces on the same line as the statement (e.g., `if`, `while`).
+## Libraries
+De libraries staan in de PlatformIO.ini.
+Het kan zijn dat deze niet direct binnenladen, dit kun je forceren door Visual Studio Code opnieuw op te starten.
 
-#### 5. Comments
-- Use `//` for single-line comments.
-- Use `/* */` for multi-line comments.
-- Document the purpose and functionality of classes, methods, and important code sections.
+## Known Errors
+Memory Overflow bij Te Veel Server Requests:
+Wanneer er meer dan twee keer het verwachte aantal server requests wordt verzonden, kan er een memory overflow optreden.
+Deze fout is opgelost door gebruik te maken van een seriële verbinding met een Raspberry Pi die de datastroom beheert en de belasting op het hoofdsysteem vermindert.
+Verdere Ondersteuning
+Mocht u tijdens de installatie of configuratie vragen hebben, kunt u contact opnemen met onze technische ondersteuning.
 
-#### 6. Functions
-- Keep functions short and focused on a single task.
-- Use descriptive names and document the parameters and return values.
+Dank u voor het kiezen van ons product. Volg deze handleiding zorgvuldig voor een optimale ervaring met uw nieuwe systeem.
 
-#### 7. Classes
-- Encapsulate data and provide public methods for accessing and modifying it.
-- Use constructors for initializing member variables.
-
-#### 8. Error Handling
-- Check for errors and handle them gracefully.
-- Use return values and error codes where appropriate.
-
-#### 9. Libraries
-- Include only the necessary libraries.
-- Document any external dependencies.
-
-#### 10. Code Reviews
-- Regularly review code with team members to ensure consistency and quality.
-
-For more detailed guidelines, refer to the full [Makerguide C++ Style Guide for Arduino projects](https://www.makerguides.com/c-style-guide-for-arduino-projects).
-
+## Code conventie
+De code convetie word gevolgt met; https://www.makerguides.com/c-style-guide-for-arduino-projects/
